@@ -7,15 +7,24 @@ const app = createApp(cfg);
 
 // Local development only: create an admin account so the web app can be tried end to end.
 if (cfg.env !== "production" && process.env.DEV_ADMIN_PHONE) {
-  try { app.createStaff(process.env.DEV_ADMIN_PHONE, "Dev admin", "admin"); console.log(`Dev admin: log in with ${process.env.DEV_ADMIN_PHONE}`); } catch { /* already exists */ }
+  app.ensureStaff(process.env.DEV_ADMIN_PHONE, "Dev admin", "admin", "vetting");
+  console.log(`Dev admin (dispatch + vetting): log in with ${process.env.DEV_ADMIN_PHONE}`);
+  // A second vetting officer, so the four-eyes approval of new Guardians can be tried on one computer.
+  if (process.env.DEV_OFFICER2_PHONE) {
+    app.ensureStaff(process.env.DEV_OFFICER2_PHONE, "Dev officer 2", "admin", "vetting");
+    console.log(`Second vetting officer: log in with ${process.env.DEV_OFFICER2_PHONE}`);
+  }
 }
 
 if (cfg.insecureDemo) {
   console.warn("\n  !!! INSECURE_DEMO=1: some defences are switched OFF so the attack scripts can show the difference. !!!\n  Never run this mode anywhere real.\n");
 }
 
-// Regular plans: create the coming week's trips now and every 30 minutes.
-const runPlans = () => { try { const n = app.materialize(); if (n) console.log(`Plans: ${n} new trip(s) scheduled`); } catch (e) { console.error("plan scheduler:", (e as Error).message); } };
+// Every 30 minutes: create the coming week's trips of regular plans, and erase expired applications.
+const runPlans = () => {
+  try { const n = app.materialize(); if (n) console.log(`Plans: ${n} new trip(s) scheduled`); } catch (e) { console.error("plan scheduler:", (e as Error).message); }
+  try { const n = app.purgeApplicants(); if (n) console.log(`Hiring: ${n} rejected application(s) erased after the retention period`); } catch (e) { console.error("retention job:", (e as Error).message); }
+};
 runPlans();
 const planTimer = setInterval(runPlans, 30 * 60 * 1000);
 planTimer.unref();

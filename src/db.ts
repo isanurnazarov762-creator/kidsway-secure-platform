@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
   name_enc    TEXT,
   role        TEXT NOT NULL CHECK (role IN ('parent','escort','admin')),
   home_enc    TEXT,                          -- parent's home address + coordinates, encrypted JSON
+  perms       TEXT,                          -- extra staff permissions, e.g. "vetting" (separation of duties)
   created_at  INTEGER NOT NULL
 );
 
@@ -148,6 +149,79 @@ CREATE TABLE IF NOT EXISTS settings (
   value TEXT NOT NULL
 );
 
+-- ---------- Hiring: KidsWay Guardian applicants and their security vetting ----------
+CREATE TABLE IF NOT EXISTS applicants (
+  id            TEXT PRIMARY KEY,
+  phone_hash    TEXT NOT NULL,               -- the phone verified by SMS when applying
+  phone_enc     TEXT NOT NULL,
+  ic_hash       TEXT NOT NULL,               -- HMAC of the MyKad number: finds duplicates without storing it in clear
+  ic_enc        TEXT NOT NULL,
+  data_enc      TEXT NOT NULL,               -- name, email, area, experience, references... as encrypted JSON
+  birth_year    INTEGER NOT NULL,            -- only what the age rule needs
+  status        TEXT NOT NULL CHECK (status IN ('submitted','in_review','approved','rejected')),
+  flags         TEXT NOT NULL DEFAULT '',    -- automatic risk signals, e.g. duplicate_ic,doc_reused
+  consent_at    INTEGER NOT NULL,
+  consent_ver   TEXT NOT NULL,
+  user_id       TEXT REFERENCES users(id),   -- the escort account created on approval
+  decided_at    INTEGER,
+  retain_until  INTEGER,                     -- rejected applications are erased after this time (PDPA retention)
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS applicant_phone ON applicants(phone_hash);
+CREATE INDEX IF NOT EXISTS applicant_ic ON applicants(ic_hash);
+
+CREATE TABLE IF NOT EXISTS applicant_sessions (
+  id          TEXT PRIMARY KEY,
+  phone_hash  TEXT NOT NULL,
+  token_hash  TEXT NOT NULL UNIQUE,
+  created_at  INTEGER NOT NULL,
+  last_seen   INTEGER NOT NULL,
+  revoked     INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS applicant_docs (
+  id            TEXT PRIMARY KEY,
+  applicant_id  TEXT NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL,
+  mime          TEXT NOT NULL,
+  sha256        TEXT NOT NULL,               -- the same file used by two applicants is a fraud signal
+  size          INTEGER NOT NULL,
+  data_enc      TEXT NOT NULL,               -- the file itself, AES-256-GCM encrypted
+  uploaded_by   TEXT NOT NULL CHECK (uploaded_by IN ('applicant','officer')),
+  created_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS applicant_checks (
+  applicant_id  TEXT NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+  check_name    TEXT NOT NULL,
+  result        TEXT NOT NULL CHECK (result IN ('pass','fail')),
+  note_enc      TEXT,
+  officer_id    TEXT NOT NULL,
+  checked_at    INTEGER NOT NULL,
+  valid_until   INTEGER,                     -- e-DKK and police checks must be repeated every year
+  PRIMARY KEY (applicant_id, check_name)
+);
+
+-- AI identity check results: scores and booleans only, never face images or face data.
+CREATE TABLE IF NOT EXISTS applicant_ai (
+  applicant_id  TEXT PRIMARY KEY REFERENCES applicants(id) ON DELETE CASCADE,
+  attempts      INTEGER NOT NULL DEFAULT 0,
+  live_doc_id   TEXT,                        -- the selfie taken during the liveness check
+  live_ok       INTEGER,                     -- 1 passed, 0 failed, NULL not checked
+  live_enc      TEXT,                        -- liveness score and reasons, encrypted JSON
+  verdict       TEXT,                        -- pass | retake_ic | retake_selfie | review
+  result_enc    TEXT,                        -- the last identity report, encrypted JSON
+  updated_at    INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS applicant_approvals (
+  applicant_id  TEXT NOT NULL REFERENCES applicants(id) ON DELETE CASCADE,
+  officer_id    TEXT NOT NULL,
+  at            INTEGER NOT NULL,
+  PRIMARY KEY (applicant_id, officer_id)
+);
+
 CREATE TABLE IF NOT EXISTS audit_log (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   at          INTEGER NOT NULL,
@@ -170,6 +244,7 @@ export type DB = DatabaseSync;
 // Columns added after the first release. Older database files get them on start-up.
 const MIGRATIONS: Array<[string, string, string]> = [
   ["users", "home_enc", "TEXT"],
+  ["users", "perms", "TEXT"],
   ["trips", "group_id", "TEXT"],
   ["trips", "leg", "TEXT NOT NULL DEFAULT 'go'"],
   ["trips", "plan_id", "TEXT"],

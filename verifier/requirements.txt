@@ -1,0 +1,6 @@
+# Exact versions: a new release cannot slip in unnoticed (supply-chain protection).
+# Python 3.12 recommended (3.10-3.12 tested by these packages on Windows and Linux).
+opencv-python-headless==4.10.0.84
+numpy==1.26.4
+# OCR for the MyKad text. Optional: without it an officer reads the card.
+rapidocr-onnxruntime==1.3.24

@@ -3,11 +3,14 @@
 #   Internet ──443──> [ nginx ]  network: edge (public)      only container with published ports
 #                        │
 #                        └──3000──> [ api ]  network: app (internal: true, no route to the internet)
+#                                     │  └── /data  encrypted fields in SQLite, volume never exposed
 #                                     │
-#                                     └── /data  encrypted fields in SQLite, volume never exposed
+#                                     └──8000──> [ verifier ]  network: ai (internal: true)
+#                                                 AI identity check; signed requests only
 #
 # The api container has no published ports and sits on an internal-only network,
-# so it can be reached from nginx and from nowhere else.
+# so it can be reached from nginx and from nowhere else. The verifier is one step deeper:
+# only the api shares its network, so even nginx cannot reach it, and it has no internet.
 
 name: kidsway
 
@@ -33,14 +36,15 @@ services:
 
   api:
     build: ..
-    env_file: ../.env            # secrets: DATA_KEY, PEPPER, URL_SIGNING_KEY (see .env.example)
+    env_file: ../.env            # secrets: DATA_KEY, PEPPER, URL_SIGNING_KEY, VERIFIER_KEY (see .env.example)
     environment:
       NODE_ENV: production
       TRUST_PROXY: "1"
+      VERIFIER_URL: http://verifier:8000
     volumes:
       - api_data:/data
       - ./logs:/logs              # security.log, read by fail2ban on the host
-    networks: [app]               # internal only: no published ports, no internet access
+    networks: [app, ai]           # internal only: no published ports, no internet access
     read_only: true
     tmpfs: [/tmp]
     cap_drop: [ALL]
@@ -49,9 +53,23 @@ services:
     mem_limit: 256m
     restart: unless-stopped
 
+  verifier:
+    build: ../verifier            # models are downloaded and SHA-256 checked at build time
+    env_file: ../.env.verifier   # ONLY VERIFIER_KEY: the verifier never sees DATA_KEY or the other secrets (least privilege)
+    networks: [ai]                # reachable only from the api; no internet, no published ports
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 100
+    mem_limit: 1g
+    restart: unless-stopped
+
 networks:
   edge: {}
   app:
+    internal: true
+  ai:
     internal: true
 
 volumes:

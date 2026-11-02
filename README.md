@@ -6,7 +6,7 @@ KidsWay lets parents book a trusted escort who takes their child from point A to
 
 > Portfolio project by Isa. The product (website and app prototype) was designed for a university startup course; this repository is my own security engineering work on top of it.
 
-![tests](https://img.shields.io/badge/tests-35%20passing-2ea44f) ![deps](https://img.shields.io/badge/runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
+![tests](https://img.shields.io/badge/tests-54%20passing-2ea44f) ![deps](https://img.shields.io/badge/API%20runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
 
 ## Results at a glance
 
@@ -31,7 +31,9 @@ Full write-up: [**Security assessment report**](docs/pentest-report.md).
 | Secure API | Node.js + TypeScript, zero third-party runtime dependencies | [`src/`](src/) |
 | Hardening | nginx (TLS 1.2/1.3, HSTS, rate limits, path allow-list), Docker (non-root, read-only, no capabilities, internal network), UFW, fail2ban | [`deploy/`](deploy/), [`Dockerfile`](Dockerfile) |
 | Working app | Installable web app (PWA) for parents, escorts and admins: OpenStreetMap map with address search, one-time trips there and back, weekly plans, live location, photo reports, admin prices | [`public/`](public/) |
-| Verification | 35 automated tests (25 security + 10 feature tests that each check the feature's security rule), 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
+| Guardian hiring and vetting | Careers page and application portal; MyKad-based eligibility; e-DKK, police, references, interview, first aid and training checks with required evidence; four-eyes approval; yearly re-checks with instant suspension; encrypted documents; PDPA erasure | [`src/hiring.ts`](src/hiring.ts), [`public/careers.html`](public/careers.html) |
+| AI identity check | Python service on its own internal network: active liveness (random head-turn prompts), selfie vs MyKad face match, MyKad OCR; HMAC-signed calls, SHA-256-pinned models, no image ever stored; the AI suggests, an officer decides | [`verifier/`](verifier/) |
+| Verification | 54 Node tests (25 security, 10 feature, 11 hiring, 8 AI) and 31 Python verifier tests, 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
 | Lab guide | Step-by-step build on Windows + VirtualBox, with nmap and fail2ban checks | [`docs/lab-guide.md`](docs/lab-guide.md) |
 
 ## Architecture
@@ -48,6 +50,10 @@ flowchart LR
     end
   end
   N --> A --> D
+  subgraph AI["Docker internal network: ai"]
+    V["AI verifier (Python)<br/>liveness · face match · OCR<br/>signed requests only"]
+  end
+  A -- "HMAC-signed" --> V
   A -. "security log" .-> F[fail2ban<br/>bans IPs]
 ```
 
@@ -79,7 +85,7 @@ flowchart LR
 - nginx: TLS 1.2/1.3 only, HSTS, two rate-limit zones, only `/api`, `/media` and `/healthz` routed.
 - Docker: API on an `internal` network with no published ports; containers non-root, read-only, all capabilities dropped.
 - UFW default deny, SSH only from the admin network; fail2ban bans IPs from the API's security log.
-- **Zero third-party runtime dependencies** (Node's built-in HTTP, crypto, SQLite and test runner): no supply-chain packages to audit.
+- **Zero third-party runtime dependencies in the API** (Node's built-in HTTP, crypto, SQLite and test runner). The AI verifier uses three exact-pinned Python packages and SHA-256-pinned models.
 
 ## The app
 
@@ -98,15 +104,33 @@ A mobile-first web app that installs on a phone like a normal app (PWA). Data is
 
 **Admin**: dispatch (assign trips and regular escorts), escorts, **prices** (base, per extra child, per extra stop, weekly discount; the server calculates every price), audit log.
 
+### Hiring: who is allowed to be alone with children
+
+![Careers page, applicant progress, officer review with checks and four-eyes approval](docs/screenshots/hiring.png)
+
+The biggest risk for a children's escort service is hiring the wrong person, so Guardians (the escorts) are recruited through a security-vetting pipeline:
+
+1. **Apply** on `/careers`: phone proven by SMS, MyKad, two references, explicit consent. Age and gender are read from the MyKad number on the server (the role is for women aged 20 to 55).
+2. **Documents**: MyKad front and back, selfie with MyKad, certificates. File signatures checked, PDFs with scripts refused, everything encrypted at rest.
+3. **Seven checks** by vetting officers: identity, **e-DKK** (JKM's check against the register of sexual offences against children), police record, references, interview, first aid, training with a shadow trip. A check can pass only with its evidence on file.
+4. **Four-eyes approval**: two different officers approve after every check passed. Only then is an escort account created.
+5. **Every year** the e-DKK and police checks are repeated; a failed re-check suspends the Guardian at once, revokes her sessions and frees her trips.
+
+**Automatic identity check (optional, with separate consent):** a live selfie with three random head-turn prompts, the selfie compared with the MyKad photo, and the MyKad number and name read by OCR. It runs in the Python [`verifier`](verifier/README.md) on an internal network; the applicant sees only the outcome, the officer sees the scores, and the AI never rejects anyone on its own.
+
+Separation of duties: only admins with the `vetting` permission open applications, and every opening is logged. Applicants can withdraw and erase everything; rejected applications are erased after 180 days.
+
 ### Try it on one computer
 
 `npm run dev`, then open **http://localhost:3000**. Each browser tab is a separate user:
 
-1. **Admin**: `+60100000000` → *Escorts* → add an escort.
-2. **Parent**: any `+60` number → add a child → *Home* → *One-time trip* or *Regular plan*.
-3. **Admin**: *Trips* → assign; *Plans* → set the regular escort.
-4. **Escort**: log in with the escort's number → start → *Simulate driving* → enter the code → photo.
-5. **Parent**: watch the escort on the map, view the photo, confirm. The trip completes and the location history is deleted.
+1. **Applicant**: open **http://localhost:3000/careers**, apply with a new number and a MyKad number of a woman aged 20 to 55 (for example `961028-10-5684`), upload any photos as documents.
+2. **Officer 1**: `+60100000000` → *Hiring* → open the application → add files for e-DKK and police → pass every check → *Approve*.
+3. **Officer 2**: `+60100000001` in another tab → *Hiring* → *Approve*. The applicant is now a Guardian and logs in with her number.
+4. **Parent**: any `+60` number → add a child → *Home* → *One-time trip* or *Regular plan*.
+5. **Admin**: *Trips* → assign; *Plans* → set the regular escort.
+6. **Guardian**: log in with her number → start → *Simulate driving* → enter the code → photo.
+7. **Parent**: watch the escort on the map, view the photo, confirm. The trip completes and the location history is deleted.
 
 In development the SMS code is shown on screen ("SMS simulator"). To send real SMS set `SMS_PROVIDER=twilio` and the Twilio keys (see `src/sms.ts`).
 
@@ -124,7 +148,8 @@ Requires **Node.js 22.18 or newer**. No `npm install` needed.
 
 ```bash
 npm run dev                 # app + API on http://localhost:3000 (data saved in data/)
-npm test                    # 35 tests
+npm test                    # 54 tests
+cd verifier && python -m unittest   # 31 verifier tests (see verifier/README.md)
 npm run attack:handover     # each attack runs against v0 and v1
 npm run attack:otp
 npm run attack:idor
@@ -152,7 +177,9 @@ Full deployment with nginx, Docker, firewall and fail2ban: [`docs/lab-guide.md`]
 | `POST /api/trips/:id/stops/:seq/reissue-code` | parent | New code after a lock |
 | `POST /api/trips/:id/stops/:seq/photo`, `GET .../photo-url` | escort / parent | Photo report, signed link |
 | `POST /api/trips/:id/stops/:seq/confirm` | parent | Confirm handover; last one completes the trip |
-| `POST /api/admin/escorts`, `/api/admin/trips/:id/assign`, `/api/admin/plans/:id/assign`, `PUT /api/admin/settings`, `GET /api/admin/audit` | admin | Staff, dispatch, regular escorts, prices, audit log |
+| `POST /api/careers/otp/request`, `/verify`; `POST/GET /api/careers/application`, `/docs`, `/withdraw` | applicant | Apply, upload documents, follow progress, withdraw and erase |
+| `GET /api/admin/applicants`, `GET /:id`, `POST /:id/docs`, `/checks`, `/approve`, `/reject`, `GET /:id/docs/:docId/link` | vetting officer | Review, evidence, checks, four-eyes decision, signed document links |
+| `POST /api/admin/trips/:id/assign`, `/api/admin/plans/:id/assign`, `PUT /api/admin/settings`, `GET /api/admin/audit` | admin | Dispatch, regular escorts, prices, audit log (`POST /api/admin/escorts` is a dev-only shortcut, refused in production) |
 
 ## Lab results
 

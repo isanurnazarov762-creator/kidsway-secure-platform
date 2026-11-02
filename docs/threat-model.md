@@ -17,14 +17,18 @@ Method: data-flow diagram, then STRIDE per element, then a control and a test fo
 | A5 | Parent and trusted-person phone numbers | Contact data, used for login | Stored as HMAC (lookup) + AES-GCM (display) |
 | A6 | Sessions | Full access to a family's data | Only SHA-256 of the token stored, 30 min idle / 12 h absolute |
 | A7 | Audit log | Evidence of who saw what | Append-only table (database triggers block UPDATE and DELETE) |
+| A8 | Guardian applicants' MyKad numbers and documents (MyKad photos, selfie, certificates, e-DKK and police results) | Identity theft material; vetting evidence | `applicants` and `applicant_docs`, AES-256-GCM, opened only by vetting officers through 5-minute signed links |
+| A9 | The vetting decision | Decides who is allowed to be alone with children | Checks with evidence, four-eyes approval, audit log |
 
 ## 2. Actors
 
 - **Parent**: books trips, owns their children's data.
 - **Escort**: sees only the trips assigned to them, and only while open.
-- **Admin / support**: creates escorts, assigns trips, reads the audit log.
+- **Admin / support**: assigns trips, sets prices, reads the audit log.
+- **Vetting officer**: an admin with the extra `vetting` permission; the only role that opens applications.
+- **Applicant**: someone applying to be a Guardian; has a limited session that reaches only `/api/careers`.
 - **Trusted receiver**: never logs in; only holds the handover code.
-- **Attackers**: a stranger at the school gate, another parent with a normal account, a curious or dishonest escort, someone who knows a parent's phone number, an outsider scanning the internet, someone who obtains a database copy.
+- **Attackers**: a person with a record who tries to get hired to reach children, a stranger at the school gate, another parent with a normal account, a curious or dishonest escort, someone who knows a parent's phone number, an outsider scanning the internet, someone who obtains a database copy.
 
 ## 3. Data flow and trust boundaries
 
@@ -85,6 +89,32 @@ Trust boundaries: (1) Internet to nginx, (2) nginx to the internal network, (3) 
 | E1 | Elevation of privilege | Parent calls admin endpoints | Role checks on every route | T10 |
 | E2 | Elevation of privilege | Container escape after an RCE | Non-root user, read-only filesystem, all capabilities dropped, no-new-privileges, API on an internal-only network | docker-compose review |
 
+## 4b. Hiring: who becomes a Guardian
+
+The most dangerous attack on a children's escort service is not technical: it is **a person who should never be alone with children getting hired**. The hiring module (`src/hiring.ts`) is designed against that, and against the theft of applicants' identity documents.
+
+| ID | STRIDE | Threat | Control | Verified by |
+|---|---|---|---|---|
+| H1 | Spoofing | Applying with someone else's identity or a fake MyKad | Phone proven by SMS; MyKad photos and a selfie checked by an officer; the identity check cannot pass without those files | G2, G6 |
+| H2 | Spoofing | Someone outside the stated rule (women aged 20-55) applies | Age and gender read from the MyKad number on the server (birth date + last digit), not from a form field | G1 |
+| H3 | Elevation of privilege | A person with a record of sexual offences against children is hired | Mandatory e-DKK check through JKM; pass only with the JKM result on file; yearly re-check; a failed re-check suspends the account, revokes sessions and frees her trips | G6, G9 |
+| H4 | Elevation of privilege | One officer (corrupt, coerced or careless) approves alone | Four-eyes: N different officers must approve after every check passed; any new check result clears earlier approvals | G7 |
+| H5 | Elevation of privilege | An admin creates an escort account and skips vetting | Direct escort creation is refused in production (`use_vetting`); accounts come only from final approval | code review, `app.ts` |
+| H6 | Spoofing / repudiation | The same person applies again under another phone, or reuses someone's documents | HMAC of the MyKad and SHA-256 of every file reveal duplicates as officer-only flags (`duplicate_ic`, `doc_reused`); the sender gets the normal answer, so MyKad numbers cannot be probed | G3, G4 |
+| H7 | Information disclosure | Theft of MyKad numbers and documents from a database copy | MyKad and every file encrypted (AES-GCM, row-bound AAD); only birth year kept in clear | G4 |
+| H8 | Information disclosure | A dispatcher or another admin browses applicants' documents | Separation of duties: only the `vetting` permission opens files; each opening logged | G5 |
+| H9 | Tampering / elevation | A malicious upload attacks the officer's computer (script in an "image", PDF with JavaScript) | File signatures checked; PDFs with JavaScript, launch actions, attachments, RichMedia or XFA refused; files served with `sandbox` CSP and `nosniff`; PDFs downloaded, not opened in the page | G4, G8 |
+| H10 | Denial of service | Bots flood the application form | SMS step, per-IP and per-phone limits, nginx `apply` zone, honeypot field (nothing saved, `bot_blocked` logged) | G3, nginx config |
+| H11 | Information disclosure | Applicants' data kept forever | Withdraw erases everything at once; rejected files erased after 180 days by the scheduler | G10, G11 |
+
+| H12 | Spoofing | A printed photo, a screen or another person is shown for the selfie | Active liveness: 3 prompts in a random order chosen by the server, single-use challenge valid 3 minutes; head-turn, same-person and motion checks; selfie only from the live camera | V1, V5, verifier tests |
+| H13 | Spoofing | Someone sends forged results to the API pretending to be the verifier, or calls the verifier directly | Verifier only on an internal network shared with the API; HMAC-signed requests with timestamp and replay protection; the API calls it, never the browser | V2, verifier `SigningTests`, compose |
+| H14 | Elevation of privilege | The AI wrongly rejects or wrongly accepts someone | AI only suggests; max 3 attempts, then an officer; the officer decides identity and must write a reason to pass against the AI | V4, V8 |
+| H15 | Information disclosure | Face data (biometric, sensitive under the PDPA since the 2024 amendment) kept or leaked | Separate, optional consent; without it no face processing at all; embeddings live only in memory; only scores stored, encrypted; head-turn frames never stored; the applicant never sees scores (they would help tune a fake) | V2, V3, V7 |
+| H16 | Tampering | Malicious images attack the AI service (decoder bugs, decompression bombs) or a swapped model | File signature and header size checked before decoding, in-memory only; models pinned by SHA-256 at download and start | verifier `ImageIntakeTests`, `ModelIntegrityTests` |
+
+Limits: the e-DKK check itself is done by JKM, outside this system; the officer uploads the result. The AI face check (verifier/) uses open models: active liveness is weaker than certified eKYC against masks and deepfakes, and error rates may differ between groups of people, so a person always decides. The legal basis for the women-only, 20-55 requirement should be confirmed with a lawyer before launch (Employment Act anti-discrimination provisions).
+
 ## 5. Risk rating (before and after)
 
 Likelihood and impact on a 1-3 scale; risk = L x I.
@@ -96,6 +126,7 @@ Likelihood and impact on a 1-3 scale; risk = L x I.
 | I1 IDOR on child data | 2 x 3 = **6** | 1 x 3 = 3 | Logic bugs in new endpoints: keep test T7 style tests for each |
 | I2 stolen database | 2 x 3 = **6** | 1 x 2 = 2 | Key theft from the same server: use a secrets manager in production |
 | D1 SMS bombing | 3 x 2 = **6** | 1 x 2 = 2 | Distributed attacks from many IPs |
+| H3 unsafe person hired | 2 x 3 = **6** (manual hiring, no required evidence) | 1 x 3 = 3 | Offences not yet in the register; mitigated by references, interview, shadow trip and parent ratings |
 
 ## 6. Malaysia: Personal Data Protection Act 2010 (PDPA)
 
@@ -103,7 +134,8 @@ How the design supports the PDPA principles (this is a design note, not legal ad
 
 - **Notice and choice / disclosure**: data is only used for the trip; the escort sees the minimum needed.
 - **Security principle**: encryption at rest, TLS in transit, access control, audit log.
-- **Retention**: location trail deleted at trip completion; photo retention should be limited (planned: 30 days).
+- **Retention**: location trail deleted at trip completion; photo retention should be limited (planned: 30 days); rejected job applications erased after 180 days, withdrawn ones at once.
+- **Consent**: applicants give explicit consent (versioned, time-stamped) to the e-DKK and police checks and to reference calls.
 - **Data integrity and access**: parents can view and delete their child's profile (`DELETE /api/children/:id`).
 - Children's data is collected only from the parent, never from the child.
 

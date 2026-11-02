@@ -22,6 +22,7 @@ export type Ctx = {
   body: unknown;
   rawBody: Buffer | null;
   user: { id: string; role: "parent" | "escort" | "admin"; sessionId: string } | null;
+  applicant?: { phoneHash: string; sessionId: string } | null; // someone applying for a job, verified by SMS
   requestId: string;
 };
 

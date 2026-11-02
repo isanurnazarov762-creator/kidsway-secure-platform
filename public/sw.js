@@ -2,7 +2,7 @@
 // Security: it caches ONLY the public static files below. API answers (children, trips, codes,
 // locations) and photos are never cached, so nothing personal is left on the phone by this worker.
 "use strict";
-const CACHE = "kidsway-shell-v2";
+const CACHE = "kidsway-shell-v3";
 const SHELL = ["/", "/static/app.js", "/static/map.js", "/static/app.css", "/static/icon-192.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (e) => {

@@ -22,6 +22,7 @@ const S = {
   gps: null,           // escort location sharing { tripId, watchId, sim, last }
   tripsTab: "upcoming",
   adminTripFilter: "open",
+  hiringView: "open",
   installPrompt: null
 };
 
@@ -97,7 +98,17 @@ const MESSAGES = {
   not_found: "Not found.",
   forbidden: "You do not have access to this."
 };
-function msg(e) { return MESSAGES[e.code] || (e.code && e.code.startsWith("invalid_") ? "Check the field: " + e.code.slice(8) : "Something went wrong (" + e.code + ")."); }
+Object.assign(MESSAGES, {
+  checks_incomplete: "Every check must pass (and still be valid) before approval.",
+  already_approved_by_you: "You already approved. A different officer must give the next approval.",
+  already_decided: "This application has already been decided.",
+  account_suspended: "This account is suspended. Contact KidsWay.",
+  use_vetting: "New Guardians are added through Hiring, after the security checks.",
+  invalid_document: "Only real JPG, PNG or PDF files up to 3 MB.",
+  pdf_active_content: "This PDF contains scripts or attachments and was refused.",
+  note_required_ai_disagrees: "The AI could not confirm this identity. Write in the note why you pass it."
+});
+function msg(e) { if (e.code && e.code.startsWith("evidence_missing:")) return "Upload the evidence first: " + e.code.slice(17).split(",").join(", ") + "."; return MESSAGES[e.code] || (e.code && e.code.startsWith("invalid_") ? "Check the field: " + e.code.slice(8) : "Something went wrong (" + e.code + ")."); }
 
 function toast(text, isErr) {
   $toast.textContent = text;
@@ -154,7 +165,7 @@ window.addEventListener("hashchange", () => { if (!$toast.classList.contains("er
 function navItems(role) {
   if (role === "parent") return [["", "Home", "home"], ["trips", "Trips", "trips"], ["plans", "Plans", "plans"], ["children", "Children", "kids"], ["profile", "Profile", "me"]];
   if (role === "escort") return [["", "My trips", "trips"], ["profile", "Profile", "me"]];
-  return [["", "Trips", "trips"], ["plans", "Plans", "plans"], ["escorts", "Escorts", "kids"], ["prices", "Prices", "price"], ["audit", "Audit", "audit"]];
+  return [["", "Trips", "trips"], ["plans", "Plans", "plans"], ["hiring", "Hiring", "hire"], ["escorts", "Team", "kids"], ["prices", "Prices", "price"], ["audit", "Audit", "audit"]];
 }
 function screen({ title, back, actions, body, nav = true }) {
   const r = route();
@@ -163,7 +174,7 @@ function screen({ title, back, actions, body, nav = true }) {
     h("h1", { class: "bar-title" }, title),
     actions || h("span", { class: "bar-sp" }));
   const items = nav && S.me ? navItems(S.me.role) : [];
-  const navEl = items.length ? h("nav", { class: "tabbar", "aria-label": "Main" }, items.map(([p, label, ic]) => {
+  const navEl = items.length ? h("nav", { class: "tabbar" + (items.length > 5 ? " six" : ""), "aria-label": "Main" }, items.map(([p, label, ic]) => {
     const on = (r[0] || "") === p;
     return h("a", { href: "#/" + p, class: on ? "on" : "", "aria-current": on ? "page" : null }, h("span", { class: "ic ic-" + ic, "aria-hidden": "true" }), h("span", null, label));
   })) : null;
@@ -896,6 +907,7 @@ async function adminRoute(r) {
   switch (r[0]) {
     case "trip": return adminTrip(r[1]);
     case "plans": return adminPlans();
+    case "hiring": return r[1] ? adminApplicant(r[1]) : adminHiring();
     case "escorts": return adminEscorts();
     case "prices": return adminPrices();
     case "audit": return adminAudit();
@@ -967,14 +979,15 @@ async function adminPlans() {
 async function adminEscorts() {
   const { escorts } = await api("GET", "/api/admin/escorts");
   const f = { name: "", phone: "+60" };
-  const b = h("button", { class: "btn block", type: "submit" }, "Add escort");
-  return screen({ title: "Escorts", body: h("div", { class: "stack" },
-    section("Team", escorts.length ? escorts.map((e) => h("div", { class: "item" }, h("span", { class: "av" }, e.name.charAt(0)), h("b", { class: "grow" }, e.name))) : empty("No escorts yet.")),
-    h("form", { class: "card", onsubmit: (e) => { e.preventDefault(); run(async () => { await api("POST", "/api/admin/escorts", f); toast("Escort added. They log in with their number."); render(); }, b); } },
-      h("h2", null, "Add an escort"),
+  const b = h("button", { class: "btn ghost block", type: "submit" }, "Quick add (development only)");
+  return screen({ title: "Team", body: h("div", { class: "stack" },
+    section("Guardians", escorts.length ? escorts.map((e) => h("div", { class: "item" }, h("span", { class: "av" }, e.name.charAt(0)), h("b", { class: "grow" }, e.name))) : empty("No Guardians yet.")),
+    section(null, h("p", null, "New Guardians join through ", h("a", { class: "link", href: "#/hiring" }, "Hiring"), ": they apply on the careers page, pass every security check and are approved by two officers.")),
+    S.settings.dev ? h("form", { class: "card", onsubmit: (e) => { e.preventDefault(); run(async () => { await api("POST", "/api/admin/escorts", f); toast("Added (development shortcut)."); render(); }, b); } },
+      h("h2", null, "Quick add for testing"),
       h("label", null, "Name", h("input", { type: "text", maxlength: "80", oninput: (e) => { f.name = e.target.value; } })),
       h("label", null, "Mobile number", h("input", { type: "tel", value: "+60", oninput: (e) => { f.phone = e.target.value.trim(); } })),
-      h("p", { class: "muted" }, "Escort accounts are created only by an admin. Sign-up in the app always creates a parent."), b)) });
+      h("p", { class: "muted" }, "Skips vetting, so the server allows it only outside production."), b) : null) });
 }
 
 async function adminPrices() {
@@ -1007,6 +1020,149 @@ async function adminAudit() {
         h("td", null, e.actor_role || "-"), h("td", null, e.action, e.detail ? h("small", { class: "muted block" }, e.detail) : null),
         h("td", null, e.target_type ? e.target_type + ":" + String(e.target_id || "").slice(0, 6) : "-"),
         h("td", { class: "outcome-" + e.outcome }, e.outcome))))))) });
+}
+
+// =====================================================================
+// ADMIN: HIRING (vetting KidsWay Guardians)
+// =====================================================================
+const FLAG_TEXT = { duplicate_ic: "Same MyKad used in another application", doc_reused: "A document file is also used by another applicant", phone_has_account: "This phone already has a KidsWay account" };
+const DOC_NAMES = { ic_front: "MyKad front", ic_back: "MyKad back", selfie: "Selfie with MyKad", first_aid_cert: "First aid certificate", police_cert: "Police record", edkk_result: "e-DKK result (JKM)", reference_notes: "Reference notes", interview_form: "Interview form", other: "Other" };
+const APP_STATUS = { submitted: ["New", "warn"], in_review: ["Checking", ""], approved: ["Guardian", "ok"], rejected: ["Rejected", "bad"] };
+const fmtDate = (t) => new Date(t * 1000).toLocaleDateString([], { day: "numeric", month: "short", year: "numeric" });
+
+async function adminHiring() {
+  let data;
+  try { data = await api("GET", "/api/admin/applicants?view=" + S.hiringView); }
+  catch (e) {
+    if (e.status === 403) return screen({ title: "Hiring", body: empty("You need the vetting permission to open applications. Ask the security lead.") });
+    throw e;
+  }
+  const list = data.applicants;
+  return screen({ title: "Hiring", body: h("div", { class: "stack" },
+    seg([["open", "To check"], ["due", "Re-check due"], ["approved", "Guardians"], ["rejected", "Rejected"]], S.hiringView, (v) => { S.hiringView = v; render(); }, "Applications"),
+    S.hiringView === "open" ? h("p", { class: "muted" }, `Every check must pass, then ${data.approvalsNeeded} different officer${data.approvalsNeeded > 1 ? "s" : ""} approve. Public page: `, h("a", { class: "link", href: "/careers", target: "_blank" }, "/careers")) : null,
+    list.length ? list.map((a) => h("a", { class: "card", href: "#/hiring/" + a.id },
+      h("div", { class: "row" }, h("span", { class: "av" }, (a.name || "?").charAt(0)),
+        h("div", { class: "grow" }, h("b", null, a.name), h("small", { class: "muted" }, `${a.age} y · ${a.area} · applied ${fmtDate(a.createdAt)}`)),
+        h("span", { class: "pill " + APP_STATUS[a.status][1] }, APP_STATUS[a.status][0])),
+      h("div", { class: "row tight" },
+        h("span", { class: "tag" }, `Checks ${a.checksPassed}/${a.checksTotal}`), a.checksFailed ? h("span", { class: "flag" }, `${a.checksFailed} failed`) : null,
+        h("span", { class: "tag" }, `${a.docs} files`), a.approvals ? h("span", { class: "tag" }, `Approvals ${a.approvals}/${data.approvalsNeeded}`) : null,
+        a.recheckDue ? h("span", { class: "flag" }, "Re-check due") : null,
+        a.flags.map((f) => h("span", { class: "flag", title: FLAG_TEXT[f] || f }, f.replace(/_/g, " ")))))) : empty("Nothing here.")) });
+}
+
+async function adminApplicant(id) {
+  const a = await api("GET", "/api/admin/applicants/" + id);
+  const open = a.status === "submitted" || a.status === "in_review";
+  const allPass = a.checks.every((c) => c.result === "pass");
+  const kindsOnFile = new Set(a.docs.map((d) => d.kind));
+
+  const docRow = (d) => {
+    const b = h("button", { class: "btn ghost small" }, "Open");
+    b.addEventListener("click", () => run(async () => {
+      const r = await api("GET", `/api/admin/applicants/${a.id}/docs/${d.id}/link`);
+      window.open(r.url, "_blank", "noopener"); // a 5-minute signed link; opening it is logged
+    }, b));
+    return h("div", { class: "item" }, h("div", { class: "grow" }, h("b", null, DOC_NAMES[d.kind] || d.kind), h("small", { class: "muted" }, `${d.mime.split("/")[1].toUpperCase()} · ${Math.round(d.size / 1024)} KB · ${d.by === "officer" ? "officer" : "applicant"} · ${fmtDate(d.at)}`)), b);
+  };
+
+  // Officer upload, e.g. the e-DKK result received from JKM.
+  let upKind = "edkk_result";
+  const upFile = h("input", { type: "file", accept: "image/jpeg,image/png,application/pdf", class: "visually-hidden", id: "officer-up" });
+  upFile.addEventListener("change", () => run(async () => {
+    const f = upFile.files && upFile.files[0]; if (!f) return;
+    const data = await readForUpload(f);
+    await api("POST", `/api/admin/applicants/${a.id}/docs`, { kind: upKind, ...data });
+    toast("Document added"); render();
+  }));
+
+  const checkCard = (c) => {
+    let note = "";
+    const missing = c.needs.filter((k) => !kindsOnFile.has(k));
+    const act = (result, label, cls) => {
+      const b = h("button", { class: "btn small " + (cls || "") }, label);
+      b.addEventListener("click", () => run(async () => {
+        const r = await api("POST", `/api/admin/applicants/${a.id}/checks`, { check: c.check, result, note: note || undefined });
+        toast(r.suspended ? "Re-check failed: the Guardian is suspended and her trips were freed." : "Saved"); render();
+      }, b));
+      return b;
+    };
+    const canEdit = a.status !== "rejected";
+    return h("div", { class: "check-card " + (c.result || "") },
+      h("div", { class: "row" }, h("b", { class: "grow" }, c.label), c.result ? h("span", { class: "pill " + (c.result === "pass" ? "ok" : "bad") }, c.result) : h("span", { class: "pill warn" }, "to do")),
+      c.result ? h("small", { class: "muted" }, `${c.by}, ${fmtDate(c.at)}${c.validUntil ? " · valid until " + fmtDate(c.validUntil) : ""}${c.note ? " · “" + c.note + "”" : ""}`) : null,
+      missing.length ? h("small", { class: "bad-text" }, "Evidence needed: " + missing.map((k) => DOC_NAMES[k]).join(", ")) : null,
+      canEdit ? h("div", { class: "row" }, h("input", { type: "text", maxlength: "500", placeholder: "Note (optional)", class: "grow", oninput: (e) => { note = e.target.value; } }), act("pass", "Pass", missing.length ? "ghost" : ""), act("fail", "Fail", "ghost danger")) : null);
+  };
+
+  const approve = h("button", { class: "btn block", disabled: !allPass || a.approvals.some((x) => x.me) }, a.approvals.some((x) => x.me) ? "You approved" : `Approve (${a.approvals.length}/${a.approvalsNeeded})`);
+  approve.addEventListener("click", () => run(async () => {
+    const r = await api("POST", `/api/admin/applicants/${a.id}/approve`, {});
+    toast(r.approved ? "Approved. Her escort account is ready: she logs in with her phone." : `Approval ${r.approvals}/${r.needed} saved. Another officer must approve.`); render();
+  }, approve));
+  let reason = "";
+  const reject = h("button", { class: "btn ghost danger" }, "Reject");
+  reject.addEventListener("click", () => run(async () => {
+    if (!reason.trim()) throw new Error("Write the reason first (kept 180 days, then erased).");
+    if (reject.dataset.sure !== "1") { reject.dataset.sure = "1"; reject.textContent = "Tap again to reject"; return; }
+    await api("POST", `/api/admin/applicants/${a.id}/reject`, { reason }); toast("Rejected"); render();
+  }, reject));
+
+  return screen({ title: a.name, back: "/hiring", body: h("div", { class: "stack" },
+    section(null,
+      h("div", { class: "row" }, h("span", { class: "av big" }, a.name.charAt(0)), h("div", { class: "grow" }, h("b", { class: "big-when" }, a.name), h("small", { class: "muted" }, `${a.age} years · ${a.area}`)),
+        h("span", { class: "pill " + APP_STATUS[a.status][1] }, APP_STATUS[a.status][0])),
+      a.flags.length ? h("div", { class: "stack-s" }, a.flags.map((f) => h("p", { class: "alert soft" }, "⚠ " + (FLAG_TEXT[f] || f)))) : null,
+      h("dl", { class: "facts" },
+        h("dt", null, "MyKad"), h("dd", null, a.ic.replace(/^(\d{6})(\d{2})(\d{4})$/, "$1-$2-$3")),
+        h("dt", null, "Phone"), h("dd", null, h("a", { class: "link", href: "tel:" + a.phone }, a.phone)),
+        a.email ? [h("dt", null, "Email"), h("dd", null, a.email)] : null,
+        h("dt", null, "Languages"), h("dd", null, a.languages.join(", ")),
+        h("dt", null, "Days"), h("dd", null, a.days.join(", ")),
+        h("dt", null, "Transport"), h("dd", null, a.transport),
+        h("dt", null, "Experience"), h("dd", null, a.experience || "-"),
+        h("dt", null, "Consent"), h("dd", null, `${fmtDate(a.consentAt)} (v${a.consentVersion})`),
+        a.rejectReason ? [h("dt", null, "Rejected"), h("dd", null, a.rejectReason)] : null)),
+    section("References", a.references.map((r) => h("div", { class: "item" }, h("div", { class: "grow" }, h("b", null, r.name), h("small", { class: "muted" }, r.relation)), h("a", { class: "btn ghost small", href: "tel:" + r.phone }, r.phone)))),
+    section("Documents", a.docs.length ? a.docs.map(docRow) : empty("No documents yet."),
+      a.status !== "rejected" ? h("div", { class: "row" },
+        h("select", { "aria-label": "Document type", class: "grow", onchange: (e) => { upKind = e.target.value; } }, ["edkk_result", "police_cert", "first_aid_cert", "reference_notes", "interview_form", "other"].map((k) => h("option", { value: k }, DOC_NAMES[k]))),
+        h("label", { class: "btn ghost small", for: "officer-up" }, "Add file"), upFile) : null,
+      h("p", { class: "muted lock" }, "Files are encrypted at rest. Links last 5 minutes and every opening is in the audit log.")),
+    aiSection(a.ai),
+    section("Checks", a.checks.map(checkCard)),
+    open ? section("Decision",
+      h("p", { class: "muted" }, `Four-eyes rule: ${a.approvalsNeeded} different officers must approve after every check passed. Any new check result clears earlier approvals.`),
+      a.approvals.length ? a.approvals.map((x) => h("p", { class: "ok-line" }, `✓ Approved by ${x.by}${x.me ? " (you)" : ""}`)) : null,
+      approve,
+      h("label", null, "Reason for rejection", h("input", { type: "text", maxlength: "300", oninput: (e) => { reason = e.target.value; } })), reject) : null,
+    a.status === "approved" ? section(null, h("p", { class: "ok-line" }, "Guardian since " + fmtDate(a.decidedAt)), h("p", { class: "muted" }, "Repeat e-DKK and police checks before they expire. A failed re-check suspends her account immediately.")) : null) });
+}
+
+// The AI identity report: a suggestion for the officer, never a decision.
+function aiSection(ai) {
+  if (!ai || !ai.verdict) return section("Automatic identity check", h("p", { class: "muted" }, ai && ai.liveOk !== null ? "Live selfie taken; the check has not run yet." : "Not run: the applicant did not consent to face comparison, or has not done the selfie check. Check identity by hand."));
+  const V = { pass: ["ok", "AI suggests: identity matches"], review: ["warn", "AI could not confirm: check by hand"], retake_selfie: ["warn", "Waiting for a new selfie"], retake_ic: ["warn", "Waiting for a new MyKad photo"] };
+  const [cls, text] = V[ai.verdict] || ["", ai.verdict];
+  const id = ai.identity || {};
+  const row = (k, v, good) => h("div", { class: "kv" }, h("span", null, k), h("b", { class: good === false ? "bad-text" : "" }, v));
+  return section("Automatic identity check",
+    h("div", { class: "row" }, h("span", { class: "pill " + cls }, text), h("small", { class: "muted" }, `attempt ${ai.attempts} of 3`)),
+    row("Live person", ai.liveOk === null ? "not checked" : ai.liveOk ? `yes (${ai.liveness ? ai.liveness.score : "-"})` : "no", ai.liveOk !== false),
+    row("Face: selfie vs MyKad", id.faceScore == null ? "-" : `${id.faceScore} (same person from 0.363)`, id.faceScore == null || id.faceScore >= 0.363),
+    id.ocr ? row("MyKad number read", id.ocr.icFound ? (id.ocr.icMatch ? "matches the form" : "DIFFERS from the form") : "not readable", id.ocr.icMatch) : null,
+    id.ocr ? row("Name on MyKad", `${id.ocr.nameMatch ? "matches" : "differs"} (${id.ocr.nameScore})`, id.ocr.nameMatch) : null,
+    (id.reasons || []).length ? h("small", { class: "muted" }, "Reasons: " + id.reasons.join(", ")) : null,
+    h("p", { class: "muted" }, "You decide the identity check. To pass it against the AI, write the reason in the note."));
+}
+
+async function readForUpload(file) {
+  if (file.size > 3 * 1024 * 1024) throw new Error("The file is larger than 3 MB.");
+  const b = new Uint8Array(await file.arrayBuffer());
+  let s = ""; for (let i = 0; i < b.length; i += 0x8000) s += String.fromCharCode.apply(null, b.subarray(i, i + 0x8000));
+  const mime = file.type === "application/pdf" ? "application/pdf" : file.type === "image/png" ? "image/png" : "image/jpeg";
+  return { mime, data: btoa(s) };
 }
 
 // =====================================================================

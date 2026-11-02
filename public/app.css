@@ -233,3 +233,68 @@ th { color: var(--muted); }
 .toast.err { background: var(--bad); }
 
 @media (max-width: 360px) { .services { grid-template-columns: 1fr; } .day-btn { font-size: 11.5px; } }
+
+/* ---------- careers page (KidsWay Guardians) ---------- */
+body.careers { background: #fff; }
+.c-top { position: sticky; top: 0; z-index: 10; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: rgba(255, 255, 255, .94); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.c-brand { display: flex; align-items: center; gap: 8px; }
+.c-brand .wm { font-size: 20px; }
+.c-sub { font-weight: 800; color: var(--muted); font-size: 13px; padding: 3px 8px; border-radius: 999px; background: var(--sun-soft); }
+.careers main { max-width: 960px; margin: 0 auto; }
+.c-hero { padding: 48px 20px 40px; display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+.c-hero h1 { font-size: clamp(32px, 6vw, 52px); line-height: 1.05; letter-spacing: -.03em; }
+.c-kicker { font-weight: 800; color: var(--a); text-transform: uppercase; letter-spacing: .08em; font-size: 13px; }
+.c-lead { font-size: 18px; color: var(--muted); max-width: 620px; }
+.c-chips { list-style: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.c-chips li { padding: 8px 14px; border-radius: 999px; background: var(--a-soft); color: var(--a-ink); font-weight: 800; font-size: 14px; }
+.c-band { padding: 36px 20px; display: flex; flex-direction: column; gap: 16px; }
+.c-band.alt { background: var(--bg); border-radius: 28px; }
+.c-band h2 { font-size: 26px; letter-spacing: -.02em; }
+.c-intro { max-width: 640px; font-size: 15px; }
+.c-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
+.c-grid .card { box-shadow: 0 1px 3px rgba(17, 24, 48, .08); }
+.c-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 8px; max-width: 700px; }
+.c-steps { list-style: none; counter-reset: s; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 10px; }
+.c-steps li { counter-increment: s; background: var(--bg); border-radius: 16px; padding: 14px 14px 14px 52px; position: relative; display: flex; flex-direction: column; gap: 2px; }
+.c-steps li::before { content: counter(s); position: absolute; left: 14px; top: 14px; width: 26px; height: 26px; border-radius: 50%; background: var(--a); color: #fff; font-weight: 800; font-size: 13px; display: grid; place-items: center; }
+.c-steps span { color: var(--muted); font-size: 13.5px; }
+.c-portal { max-width: 560px; width: 100%; }
+.c-band details summary { font-weight: 800; }
+.c-foot { padding: 28px 20px 40px; text-align: center; }
+.c-foot a { color: var(--a); font-weight: 700; }
+.chip.plain { padding: 0 16px; }
+.ref { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--bg); }
+.check-line { flex-direction: row; align-items: flex-start; gap: 12px; color: var(--ink); font-weight: 600; font-size: 14px; }
+.check-line input { width: 22px; height: 22px; flex: none; margin-top: 2px; accent-color: var(--a); }
+.bad-text { color: var(--bad); font-weight: 700; }
+.doc-dot { width: 14px; height: 14px; border-radius: 50%; border: 3px solid var(--line); flex: none; }
+.doc-dot.ok { border-color: var(--ok); background: var(--ok); }
+.progress { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.progress li { display: grid; grid-template-columns: 18px 1fr auto; gap: 10px; align-items: center; font-weight: 700; font-size: 14px; }
+.pdot { width: 18px; height: 18px; border-radius: 50%; border: 3px solid var(--line); }
+.progress li.done .pdot { border-color: var(--ok); background: var(--ok); }
+
+/* ---------- admin: hiring ---------- */
+.ic-hire { --m: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='10' cy='8' r='4'/%3E%3Cpath d='M3 20a7 7 0 0 1 11-5.7M16 18l2 2 4-4'/%3E%3C/svg%3E"); }
+.flag { font-size: 11.5px; font-weight: 800; padding: 3px 8px; border-radius: 8px; background: var(--bad-soft); color: var(--bad); }
+.check-card { border: 1.5px solid var(--line); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.check-card.pass { border-color: #a8dcbc; background: var(--ok-soft); }
+.check-card.fail { border-color: #f1b3ad; background: var(--bad-soft); }
+.check-card .row input { height: 40px; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 14px; }
+.facts dt { color: var(--muted); }
+.facts dd { margin: 0; font-weight: 700; word-break: break-word; }
+.tabbar.six a { font-size: 10.5px; }
+
+/* ---------- live selfie check (careers) ---------- */
+.cam-ov { position: fixed; inset: 0; z-index: 70; background: #0b0f1d; color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 20px max(16px, env(safe-area-inset-left)) calc(20px + env(safe-area-inset-bottom)); }
+.cam-frame { position: relative; width: min(92vw, 420px); aspect-ratio: 3 / 4; border-radius: 28px; overflow: hidden; background: #000; }
+.cam-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.cam-oval { position: absolute; left: 50%; top: 46%; width: 62%; aspect-ratio: .78; transform: translate(-50%, -50%); border: 4px solid #2fbf71; border-radius: 50%; box-shadow: 0 0 0 999px rgba(0, 0, 0, .45); }
+.cam-count { position: absolute; inset: 0; display: grid; place-items: center; margin: 0; font-size: 64px; font-weight: 800; text-shadow: 0 2px 12px rgba(0, 0, 0, .6); }
+.cam-prompt { margin: 0; font-size: 20px; font-weight: 800; text-align: center; }
+.cam-note { margin: 0; color: #bcc7ea; font-size: 13px; text-align: center; max-width: 360px; }
+.cam-dots { display: flex; gap: 8px; }
+.cam-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .3); }
+.cam-dots i.on { background: #2fbf71; }
+.cam-ov .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }

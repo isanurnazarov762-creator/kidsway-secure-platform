@@ -1,5 +1,6 @@
 // Creates the first admin account. Usage:
 //   ADMIN_PHONE=+60123456789 ADMIN_NAME="Ops admin" npm run seed
+// ADMIN_PERMS=vetting (default) lets this admin vet new Guardians. Set ADMIN_PERMS= (empty) for a dispatcher only.
 import { loadConfig } from "./config.ts";
 import { createApp } from "./app.ts";
 import { PHONE_RE } from "./validate.ts";
@@ -11,7 +12,8 @@ if (!PHONE_RE.test(phone)) {
 }
 const app = createApp(loadConfig());
 try {
-  const id = app.createStaff(phone, process.env.ADMIN_NAME || "Admin", "admin");
+  const perms = process.env.ADMIN_PERMS ?? "vetting";
+  const id = app.ensureStaff(phone, process.env.ADMIN_NAME || "Admin", "admin", perms || null);
   console.log("Admin created:", id, "- log in with this phone number and the SMS code.");
 } catch (e) {
   console.error("Could not create admin (does this phone already have an account?)", (e as Error).message);

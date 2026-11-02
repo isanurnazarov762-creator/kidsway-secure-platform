@@ -21,6 +21,12 @@ export type Config = {
   photoUrlTtlSec: number;
   maxJsonBytes: number;
   maxPhotoBytes: number;
+  maxDocBytes: number;
+  vettingApprovals: number; // distinct officers who must approve a new Guardian (four-eyes principle)
+  rejectedRetentionSec: number;
+  verifierUrl: string | null; // internal AI verifier (verifier/), e.g. http://verifier:8000
+  verifierKey: Buffer | null; // shared HMAC key for signing requests to it
+  aiMaxAttempts: number;
   devOtpEcho: boolean; // returns OTP in the response, for local tests only
   insecureDemo: boolean; // turns OFF some defences so the attack scripts can show the difference
   securityLogFile: string | null;
@@ -78,6 +84,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     photoUrlTtlSec: 300,
     maxJsonBytes: 64 * 1024,
     maxPhotoBytes: 2 * 1024 * 1024,
+    maxDocBytes: 3 * 1024 * 1024,
+    vettingApprovals: Math.max(prod ? 2 : 1, Number(env.VETTING_APPROVALS || 2)),
+    rejectedRetentionSec: 180 * 86400,
+    verifierUrl: env.VERIFIER_URL || null,
+    verifierKey: env.VERIFIER_KEY ? Buffer.from(env.VERIFIER_KEY, "base64") : null,
+    aiMaxAttempts: 3,
     devOtpEcho: !prod && env.DEV_OTP_ECHO === "1",
     insecureDemo: env.INSECURE_DEMO === "1",
     securityLogFile: env.SECURITY_LOG_FILE || null,
@@ -88,6 +100,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
       : { globalIpPerMin: 300, otpRequestIpPer10Min: 10, otpRequestPhonePer10Min: 3, otpVerifyIpPer10Min: 20 },
     ...overrides
   };
+  if (cfg.verifierUrl && (!cfg.verifierKey || cfg.verifierKey.length < 32)) {
+    throw new Error("VERIFIER_URL is set but VERIFIER_KEY is missing or shorter than 32 bytes");
+  }
+  if (prod && cfg.verifierUrl && !/^http:\/\/[a-z0-9.-]+:\d+$/.test(cfg.verifierUrl) && !cfg.verifierUrl.startsWith("https://")) {
+    throw new Error("VERIFIER_URL must be an internal service address (http://name:port) or https://");
+  }
   if (prod && (cfg.insecureDemo || cfg.devOtpEcho)) {
     throw new Error("INSECURE_DEMO and DEV_OTP_ECHO are not allowed in production");
   }

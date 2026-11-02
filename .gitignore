@@ -5,3 +5,7 @@ deploy/certs/*.key
 deploy/certs/*.crt
 deploy/logs/*.log
 .env.local
+.env.verifier
+verifier/models/*.onnx
+verifier/.venv/
+__pycache__/

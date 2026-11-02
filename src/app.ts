@@ -3,6 +3,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { Config } from "./config.ts";
 import { openDb, now, DEFAULT_SETTINGS } from "./db.ts";
 import { makeSmsSender } from "./sms.ts";
+import { registerHiring } from "./hiring.ts";
+import { makeVerifier } from "./verifier.ts";
 import type { DB } from "./db.ts";
 import { HttpError, Router, clientIp, readBody, securityHeaders, sendJson } from "./http.ts";
 import type { Ctx } from "./http.ts";
@@ -37,7 +39,9 @@ export function createApp(cfg: Config) {
     handover: new RateLimiter(10, 60),       // handover code checks per escort per minute
     location: new RateLimiter(60, 60),       // location pings per trip per minute
     media: new RateLimiter(60, 60),
-    reissue: new RateLimiter(10, 600)        // new handover codes per trip per 10 minutes
+    reissue: new RateLimiter(10, 600),       // new handover codes per trip per 10 minutes
+    apply: new RateLimiter(cfg.limits.otpRequestIpPer10Min, 600), // job applications per IP
+    docs: new RateLimiter(30, 3600)          // document uploads per application per hour
   };
 
   // ---------- helpers ----------
@@ -328,7 +332,7 @@ export function createApp(cfg: Config) {
   // =====================================================================
   r.add("GET", "/api/settings", (ctx) => {
     requireUser(ctx);
-    return getSettings();
+    return { ...getSettings(), dev: cfg.env !== "production" };
   });
 
   r.add("PUT", "/api/admin/settings", (ctx) => {
@@ -776,8 +780,10 @@ export function createApp(cfg: Config) {
   // =====================================================================
   // ADMIN
   // =====================================================================
+  // Development and test shortcut only. In production every Guardian comes through vetting (src/hiring.ts).
   r.add("POST", "/api/admin/escorts", (ctx) => {
     requireUser(ctx, "admin");
+    if (cfg.env === "production") throw new HttpError(403, "use_vetting");
     const b = obj(ctx.body);
     const phone = str(b, "phone", { max: 16, re: PHONE_RE })!;
     const name = str(b, "name", { max: 80 })!;
@@ -835,6 +841,8 @@ export function createApp(cfg: Config) {
     "/static/app\\.js": ["app.js", "text/javascript; charset=utf-8"],
     "/static/map\\.js": ["map.js", "text/javascript; charset=utf-8"],
     "/static/app\\.css": ["app.css", "text/css; charset=utf-8"],
+    "/careers": ["careers.html", "text/html; charset=utf-8"],
+    "/static/careers\\.js": ["careers.js", "text/javascript; charset=utf-8"],
     "/static/icon-192\\.png": ["icon-192.png", "image/png"],
     "/static/icon-512\\.png": ["icon-512.png", "image/png"],
     "/manifest\\.webmanifest": ["manifest.webmanifest", "application/manifest+json"],
@@ -859,9 +867,14 @@ export function createApp(cfg: Config) {
   });
 
   // =====================================================================
+  // HIRING: KidsWay Guardian applications and security vetting (src/hiring.ts)
+  // =====================================================================
+  const hiring = registerHiring({ r, db, cfg, sec, enc, dec, phoneHash, requireUser, sendSms, rl, verifier: makeVerifier(cfg) });
+
+  // =====================================================================
   // Request pipeline
   // =====================================================================
-  const findSession = db.prepare("SELECT s.id, s.user_id, s.created_at, s.last_seen, s.revoked, u.role FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?");
+  const findSession = db.prepare("SELECT s.id, s.user_id, s.created_at, s.last_seen, s.revoked, u.role, u.perms FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?");
   const touchSession = db.prepare("UPDATE sessions SET last_seen = ? WHERE id = ?");
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -880,14 +893,22 @@ export function createApp(cfg: Config) {
       const auth = req.headers.authorization;
       if (auth) {
         const mt = /^Bearer ([A-Za-z0-9_-]{20,100})$/.exec(auth);
-        const s = mt ? (findSession.get(sha256(mt[1])) as Row | undefined) : undefined;
+        if (mt && mt[1].startsWith("ap_")) {
+          // Job applicants have their own, limited sessions: they can only reach /api/careers.
+          ctx.applicant = hiring.resolveApplicant(mt[1]);
+          if (!ctx.applicant) { sec.log("auth_fail", ctx, { reason: "bad_applicant_session" }); throw new HttpError(401, "unauthorized"); }
+        }
+        const s = mt && !ctx.applicant ? (findSession.get(sha256(mt[1])) as Row | undefined) : undefined;
         const t = now();
-        if (!s || s.revoked || t - s.last_seen > cfg.sessionIdleSec || t - s.created_at > cfg.sessionAbsoluteSec) {
+        if (ctx.applicant) { /* applicant session resolved above */ } else if (!s || s.revoked || t - s.last_seen > cfg.sessionIdleSec || t - s.created_at > cfg.sessionAbsoluteSec) {
           sec.log("auth_fail", ctx, { reason: "bad_session" });
           throw new HttpError(401, "unauthorized");
         }
-        touchSession.run(t, s.id);
-        ctx.user = { id: s.user_id, role: s.role, sessionId: s.id };
+        if (s) {
+          if (String(s.perms || "").split(",").includes("suspended")) throw new HttpError(403, "account_suspended");
+          touchSession.run(t, s.id);
+          ctx.user = { id: s.user_id, role: s.role, sessionId: s.id };
+        }
       }
 
       if (req.method === "POST" || req.method === "PATCH" || req.method === "PUT") {
@@ -923,14 +944,27 @@ export function createApp(cfg: Config) {
 
   // Photo upload needs a bigger body limit than the default 64 KB.
   for (const route of r.routes) if (route.re.source.includes("photo$")) route.maxBody = Math.ceil(cfg.maxPhotoBytes * 1.4) + 1024;
+  // Hiring documents (MyKad photos, certificates) are up to 3 MB.
+  for (const route of r.routes) if (route.method === "POST" && route.re.source.endsWith("/docs$")) route.maxBody = Math.ceil(cfg.maxDocBytes * 1.4) + 1024;
+  // The live selfie sends three camera frames.
+  for (const route of r.routes) if (route.method === "POST" && route.re.source.endsWith("/selfie$")) route.maxBody = Math.ceil(cfg.maxDocBytes * 3 * 1.4) + 4096;
 
   // Test helper: create a staff account directly (in real life an admin is created by the seed script).
-  function createStaff(phone: string, name: string, role: (typeof ROLES)[number]): string {
+  function createStaff(phone: string, name: string, role: (typeof ROLES)[number], perms: string | null = null): string {
     const id = newId();
-    db.prepare("INSERT INTO users (id, phone_hash, phone_enc, name_enc, role, created_at) VALUES (?,?,?,?,?,?)")
-      .run(id, phoneHash(phone), enc(phone, `users|phone|${id}`), enc(name, `users|name|${id}`), role, now());
+    db.prepare("INSERT INTO users (id, phone_hash, phone_enc, name_enc, role, perms, created_at) VALUES (?,?,?,?,?,?,?)")
+      .run(id, phoneHash(phone), enc(phone, `users|phone|${id}`), enc(name, `users|name|${id}`), role, perms, now());
     return id;
   }
 
-  return { handle, db, cfg, createStaff, materialize };
+  /** Creates a staff account, or updates the permissions of an existing one (dev start-up and seed script). */
+  function ensureStaff(phone: string, name: string, role: (typeof ROLES)[number], perms: string | null): string {
+    const u = db.prepare("SELECT id, role FROM users WHERE phone_hash = ?").get(phoneHash(phone)) as Row | undefined;
+    if (!u) return createStaff(phone, name, role, perms);
+    if (u.role !== role) throw new Error("this phone already has a different role");
+    db.prepare("UPDATE users SET perms = ? WHERE id = ?").run(perms, u.id);
+    return u.id;
+  }
+
+  return { handle, db, cfg, createStaff, ensureStaff, materialize, purgeApplicants: hiring.purgeApplicants };
 }

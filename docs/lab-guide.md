@@ -13,7 +13,7 @@ Take the screenshots marked 📸. They go into the README and prove you did it y
 2. Open the project folder in VS Code, open a terminal and run:
    ```powershell
    node -v          # must show v22.18 or newer
-   npm test         # 35 tests should pass
+   npm test         # 54 tests should pass
    npm run attack:handover
    npm run attack:otp
    npm run attack:idor
@@ -65,10 +65,11 @@ cd /opt/kidsway
 
 # secrets
 cp .env.example .env
-for k in DATA_KEY PEPPER URL_SIGNING_KEY; do
+for k in DATA_KEY PEPPER URL_SIGNING_KEY VERIFIER_KEY; do
   sed -i "s|^$k=.*|$k=$(openssl rand -base64 32)|" .env
 done
 chmod 600 .env
+grep '^VERIFIER_KEY=' .env > .env.verifier && chmod 600 .env.verifier   # the AI verifier gets only its key
 
 # TLS certificate for the lab
 sh deploy/certs/generate-dev-cert.sh
@@ -84,6 +85,8 @@ docker compose -f deploy/docker-compose.yml ps
 Create the first admin:
 ```bash
 docker compose -f deploy/docker-compose.yml exec -e ADMIN_PHONE=+60123456789 api node --disable-warning=ExperimentalWarning src/seed.ts
+# a second vetting officer (new Guardians need two approvals in production)
+docker compose -f deploy/docker-compose.yml exec -e ADMIN_PHONE=+60123456780 -e ADMIN_NAME="Officer 2" api node --disable-warning=ExperimentalWarning src/seed.ts
 ```
 
 From Windows (PowerShell):
@@ -109,6 +112,8 @@ sudo fail2ban-client status kidsway
 Check the segmentation:
 ```bash
 docker network inspect kidsway_app | grep -i internal      # "Internal": true
+docker network inspect kidsway_ai | grep -i internal       # "Internal": true (api <-> verifier only)
+docker compose -f deploy/docker-compose.yml exec nginx wget -qO- -T 3 http://verifier:8000/healthz || echo "nginx cannot reach the verifier: OK"
 docker compose -f deploy/docker-compose.yml exec api wget -qO- -T 3 https://example.com || echo "no internet from api: OK"
 ```
 📸
