@@ -1,0 +1,65 @@
+
+==============================================================================
+ ATTACK: Handover code brute force
+ Guess the receiver's code by trying every value until the API accepts one.
+==============================================================================
+
+  v0 (insecure): 4-digit code, unlimited tries
+  Guesses sent                8460
+  Time                        5.7 s
+  Result                      CRACKED, code 8459 accepted -> child handed to attacker
+
+  v1 (secure): 6-digit code, locks after 5 tries, 10 checks/min
+  Guesses sent                100
+  Time                        0.1 s
+  Result                      BLOCKED
+  API answers                 wrong_code x4, code_locked_contact_parent x6, too_many_requests x90
+  Audit log entries           5 failed handover checks recorded
+  Chance to guess in 5 tries  0.0005 %
+  Stop B after the attack     LOCKED, child not handed over; parent alerted, can re-issue a new code
+
+==============================================================================
+ ATTACK: SMS login code brute force
+ Take over a parent's account by guessing the one-time login code.
+==============================================================================
+
+  v0 (insecure): 4-digit SMS code, unlimited tries
+  Guesses sent                6942
+  Time                        3.4 s
+  Result                      ACCOUNT TAKEN OVER, attacker has a valid session
+
+  v1 (secure): 6-digit code, burned after 5 wrong tries
+  Guesses sent                50
+  Time                        0.0 s
+  Result                      BLOCKED
+  API answers                 invalid_code x4, too_many_attempts x1, invalid_or_expired x45
+  New codes, same phone       202, 429, 429, 429, 429  (429 = SMS bombing stopped)
+
+==============================================================================
+ ATTACK: IDOR on child records
+ Read another family's child profile (medical notes) with your own valid account.
+==============================================================================
+
+  v0 (insecure): no ownership check
+  HTTP status                 200
+  Data returned               {"name":"Victim Child","medical":"Severe peanut allergy, EpiPen in bag","dob":"2018-03-12"}
+  Result                      LEAKED another family's child data
+
+  v1 (secure): ownership check, 404 for other families
+  HTTP status                 404
+  Data returned               {"error":"not_found"}
+  Result                      BLOCKED
+  Audit log                   1 denied access attempt recorded
+  Guessing IDs instead?       IDs are 128-bit random values: 2^128 possibilities, enumeration is not practical
+
+==============================================================================
+ ATTACK: Signed photo link tampering
+ Extend, forge or reuse the short-lived link to a child's handover photo.
+==============================================================================
+
+  v1 (secure): HMAC-SHA256 signature over path + expiry, 5-minute lifetime
+  Original link               HTTP 200 (photo served)
+  Expiry +1 year              HTTP 403 (refused)
+  Forged signature            HTTP 403 (refused)
+  Same sig, other photo       HTTP 403 (refused)
+  No signature at all         HTTP 403 (refused)

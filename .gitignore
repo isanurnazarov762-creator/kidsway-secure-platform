@@ -1,0 +1,7 @@
+node_modules/
+data/
+.env
+deploy/certs/*.key
+deploy/certs/*.crt
+deploy/logs/*.log
+.env.local

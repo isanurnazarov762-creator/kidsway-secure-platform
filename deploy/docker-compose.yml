@@ -1,0 +1,59 @@
+# KidsWay: segmented deployment
+#
+#   Internet ──443──> [ nginx ]  network: edge (public)      only container with published ports
+#                        │
+#                        └──3000──> [ api ]  network: app (internal: true, no route to the internet)
+#                                     │
+#                                     └── /data  encrypted fields in SQLite, volume never exposed
+#
+# The api container has no published ports and sits on an internal-only network,
+# so it can be reached from nginx and from nowhere else.
+
+name: kidsway
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/proxy_common.conf:/etc/nginx/proxy_common.conf:ro
+      - ./certs:/etc/nginx/certs:ro
+      - nginx_logs:/var/log/nginx
+    networks: [edge, app]
+    depends_on: [api]
+    read_only: true
+    tmpfs: [/var/cache/nginx, /var/run, /tmp]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, CHOWN, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+
+  api:
+    build: ..
+    env_file: ../.env            # secrets: DATA_KEY, PEPPER, URL_SIGNING_KEY (see .env.example)
+    environment:
+      NODE_ENV: production
+      TRUST_PROXY: "1"
+    volumes:
+      - api_data:/data
+      - ./logs:/logs              # security.log, read by fail2ban on the host
+    networks: [app]               # internal only: no published ports, no internet access
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 200
+    mem_limit: 256m
+    restart: unless-stopped
+
+networks:
+  edge: {}
+  app:
+    internal: true
+
+volumes:
+  api_data: {}
+  nginx_logs: {}

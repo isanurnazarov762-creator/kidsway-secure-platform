@@ -1,0 +1,29 @@
+{
+  "name": "kidsway-secure-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Security-first backend and network design for KidsWay, a children's escort service. Zero third-party dependencies.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.ts",
+    "dev": "node --disable-warning=ExperimentalWarning scripts/setup.ts && node --disable-warning=ExperimentalWarning --env-file=.env.dev --env-file=.env.local src/server.ts",
+    "start:insecure-demo": "node --disable-warning=ExperimentalWarning --env-file=.env.insecure-demo src/server.ts",
+    "seed": "node --disable-warning=ExperimentalWarning src/seed.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test --test-reporter=spec \"test/**/*.test.ts\"",
+    "attack:otp": "node --disable-warning=ExperimentalWarning attacks/otp-bruteforce.ts",
+    "attack:idor": "node --disable-warning=ExperimentalWarning attacks/idor-child-data.ts",
+    "attack:handover": "node --disable-warning=ExperimentalWarning attacks/handover-bruteforce.ts",
+    "attack:photo-url": "node --disable-warning=ExperimentalWarning attacks/photo-url-tamper.ts",
+    "scan:ports": "node --disable-warning=ExperimentalWarning attacks/port-scan.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "setup": "node --disable-warning=ExperimentalWarning scripts/setup.ts"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "22.10.1",
+    "typescript": "5.9.3"
+  }
+}
