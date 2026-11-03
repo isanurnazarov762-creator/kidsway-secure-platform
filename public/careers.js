@@ -48,6 +48,7 @@ const MESSAGES = {
   not_eligible: "Sorry, this role is open to women aged 20 to 55. Your MyKad number does not match these requirements.",
   consent_required: "Please tick the consent box to continue.",
   invalid_references: "Add two different references, not your own number.",
+  invalid_reference_details: "Fill in both references: full name, Malaysian mobile number (+60...) and how you know them.",
   invalid_languages: "Choose at least one language.",
   invalid_days: "Choose at least one day.",
   invalid_area: "Fill in the area where you live.",

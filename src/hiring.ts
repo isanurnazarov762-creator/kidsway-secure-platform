@@ -188,8 +188,14 @@ export function registerHiring(d: Deps) {
     const transport = oneOf(b, "transport", ["none", "motorcycle", "car"] as const);
     if (!Array.isArray(b.references) || b.references.length !== 2) throw new HttpError(400, "invalid_references");
     const refs = b.references.map((x: unknown) => {
-      const o = obj(x);
-      return { name: str(o, "name", { min: 3, max: 80 })!, phone: str(o, "phone", { max: 16, re: PHONE_RE })!, relation: str(o, "relation", { max: 60 })! };
+      // A problem in a reference gets its own error code, so the form does not blame the applicant's own name.
+      try {
+        const o = obj(x);
+        return { name: str(o, "name", { min: 3, max: 80 })!, phone: str(o, "phone", { max: 16, re: PHONE_RE })!, relation: str(o, "relation", { max: 60 })! };
+      } catch (e) {
+        if (e instanceof HttpError && e.status === 400) throw new HttpError(400, "invalid_reference_details");
+        throw e;
+      }
     });
     const refHashes = refs.map((x: Row) => phoneHash(x.phone));
     if (refHashes[0] === refHashes[1] || refHashes.includes(ap.phoneHash)) throw new HttpError(400, "invalid_references");

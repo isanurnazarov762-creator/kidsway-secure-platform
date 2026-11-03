@@ -82,6 +82,14 @@ describe("Applying (KidsWay Guardian)", () => {
     assert.equal((await send(ic(20))).status, 201);
   });
 
+  test("G12 an incomplete reference is reported as a reference problem, not as the applicant's name", async () => {
+    const s = await applicantSession();
+    const bad = form(s.phone, ic(30), { references: [{ name: "", phone: "+60123000001", relation: "Former employer" }, { name: "Encik Lim", phone: "+60123000002", relation: "Neighbour" }] });
+    const r = await api.call("POST", "/api/careers/application", bad, s.token);
+    assert.equal(r.status, 400);
+    assert.equal(r.body.error, "invalid_reference_details");
+  });
+
   test("G2 applicant sessions are separate and limited; the form needs SMS proof and consent", async () => {
     const s = await applicantSession();
     const parent = await api.login();
