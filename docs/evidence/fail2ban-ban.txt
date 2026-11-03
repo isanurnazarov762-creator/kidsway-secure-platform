@@ -1,0 +1,33 @@
+# Intrusion prevention test, 2026-11-03.
+# The Windows host sent 25 API requests with a forged session token:
+#   1..25 | % { curl.exe -k -s -o NUL --max-time 3 -w "%{http_code} " `
+#     -H "Authorization: Bearer fakefakefakefakefake$_" https://192.168.56.10/api/settings }
+# The API logged each one as auth_fail; fail2ban banned the source IP on ports 80/443
+# (DOCKER-USER chain) after 20 events. SSH stayed open for the administrator.
+
+isa@kidsway-server:~/kidsway$ sudo fail2ban-client status
+Status
+|- Number of jail:      2
+`- Jail list:   kidsway, sshd
+
+isa@kidsway-server:~/kidsway$ sudo fail2ban-client status kidsway
+Status for the jail: kidsway
+|- Filter
+|  |- Currently failed: 1
+|  |- Total failed:     22
+|  `- File list:        /home/isa/kidsway/deploy/logs/security.log
+`- Actions
+   |- Currently banned: 1
+   |- Total banned:     1
+   `- Banned IP list:   192.168.56.1
+
+isa@kidsway-server:~/kidsway$ sudo tail -5 deploy/logs/security.log
+2026-11-03T07:09:37.275Z kidsway_security event=auth_fail ip=192.168.56.1 reason=bad_session
+2026-11-03T07:09:37.332Z kidsway_security event=auth_fail ip=192.168.56.1 reason=bad_session
+2026-11-03T07:09:37.396Z kidsway_security event=auth_fail ip=192.168.56.1 reason=bad_session
+2026-11-03T07:09:37.432Z kidsway_security event=auth_fail ip=192.168.56.1 reason=bad_session
+2026-11-03T07:09:37.470Z kidsway_security event=auth_fail ip=192.168.56.1 reason=bad_session
+# The log holds an event code and the IP only: no token, phone number or personal data.
+
+isa@kidsway-server:~/kidsway$ sudo fail2ban-client set kidsway unbanip 192.168.56.1
+1

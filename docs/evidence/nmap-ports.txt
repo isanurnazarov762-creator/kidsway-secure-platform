@@ -1,0 +1,30 @@
+# Lab scan from the Windows host (192.168.56.1) to the KidsWay VM (192.168.56.10), 2026-11-03.
+# Nmap 7.99 for Windows. Copied from the terminal.
+
+PS> nmap -Pn -p 22,80,443,3000,8000 192.168.56.10
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-11-03 15:02 +0800
+Nmap scan report for 192.168.56.10
+Host is up (0.0012s latency).
+
+PORT     STATE    SERVICE
+22/tcp   open     ssh
+80/tcp   open     http
+443/tcp  open     https
+3000/tcp filtered ppp
+8000/tcp filtered http-alt
+MAC Address: 08:00:27:5E:EC:52 (Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 2.23 seconds
+
+PS> nmap -Pn -p- --min-rate 1000 192.168.56.10
+Starting Nmap 7.99 ( https://nmap.org ) at 2026-11-03 15:03 +0800
+Nmap scan report for 192.168.56.10
+Host is up (0.00038s latency).
+Not shown: 65532 filtered tcp ports (no-response)
+PORT    STATE SERVICE
+22/tcp  open  ssh
+80/tcp  open  http
+443/tcp open  https
+MAC Address: 08:00:27:5E:EC:52 (Oracle VirtualBox virtual NIC)
+
+Nmap done: 1 IP address (1 host up) scanned in 102.31 seconds

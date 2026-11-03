@@ -183,15 +183,31 @@ Full deployment with nginx, Docker, firewall and fail2ban: [`docs/lab-guide.md`]
 
 ## Lab results
 
-_Fill in after running the lab guide on your own machine._
+Built and attacked on my own laptop: Windows 11 host, **Ubuntu Server 26.04.1 LTS** VM in VirtualBox (2 CPU, 4 GB RAM), host-only lab network `192.168.56.0/24`, the stack in Docker Compose. All checks were run on 2026-11-03, after a reboot of the VM.
 
-- [ ] `docker compose ps`: only nginx publishes ports
-- [ ] nmap from Windows: 22/80/443 open, 3000 not visible
-- [ ] nmap `ssl-enum-ciphers`: only TLS 1.2 and 1.3
-- [ ] fail2ban banned the Windows host after repeated bad logins
-- [ ] API container cannot reach the internet
+| Check | Result | Evidence |
+|---|---|---|
+| Only the reverse proxy is exposed | `docker compose ps`: only nginx publishes ports (80, 443); api `3000/tcp` and verifier `8000/tcp` are internal | [`server-hardening.txt`](docs/evidence/server-hardening.txt) |
+| Port scan of all 65,535 TCP ports from Windows | **3 open** (22, 80, 443), 65,532 filtered; 3000 and 8000 `filtered` | [`nmap-ports.txt`](docs/evidence/nmap-ports.txt) |
+| TLS configuration | Only **TLS 1.2 and 1.3**, ECDHE / x25519 key exchange (forward secrecy), AEAD ciphers only, `least strength: A` | [`nmap-tls.txt`](docs/evidence/nmap-tls.txt) |
+| Host firewall (UFW) | Default deny inbound; SSH only from the admin network, rate-limited | [`server-hardening.txt`](docs/evidence/server-hardening.txt) |
+| Network segmentation | `app` and `ai` networks are `internal`; nginx cannot resolve the verifier; the API has no internet access | [`server-hardening.txt`](docs/evidence/server-hardening.txt) |
+| Secret files not served | `https://192.168.56.10/.env` → 404 | [screenshot](docs/evidence/screenshots/10-env-file-blocked.png) |
+| Intrusion prevention | 25 requests with a forged token → 22 `auth_fail` events → fail2ban **banned 192.168.56.1** on 80/443; SSH stayed open | [`fail2ban-ban.txt`](docs/evidence/fail2ban-ban.txt) |
+| Privacy of logs | Security log holds event code and IP only, no tokens or personal data | [`fail2ban-ban.txt`](docs/evidence/fail2ban-ban.txt) |
 
-Screenshots: `docs/evidence/screenshots/`
+Problems I hit on the way, and the fixes (now in the repo and the [lab guide](docs/lab-guide.md)):
+
+- The AI verifier container kept restarting with `libGL.so.1` missing: the OCR library pulls in the desktop build of OpenCV. The Dockerfile now replaces it with the headless build (smaller image, no GUI libraries).
+- fail2ban watched a log path that did not exist (`/opt/kidsway` vs the clone in `~/kidsway`), which would have failed silently. The guide now writes the real path and checks it with `fail2ban-client status kidsway`.
+- Windows refused port 8090 for the local verifier (a reserved port range, `WinError 10013`); the default is now 5091.
+
+<p>
+<img src="docs/evidence/screenshots/08-containers-ufw-fail2ban.png" width="49%" alt="Containers, UFW and fail2ban after a reboot">
+<img src="docs/evidence/screenshots/14-fail2ban-ban.png" width="49%" alt="fail2ban banning the attacking host">
+</p>
+
+All 14 screenshots, with what each one shows: [`docs/evidence/screenshots/`](docs/evidence/screenshots/)
 
 ## Limits and next steps
 

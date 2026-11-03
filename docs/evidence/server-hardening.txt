@@ -1,0 +1,39 @@
+# Containers, firewall and network segmentation on the KidsWay VM, 2026-11-03.
+# Ubuntu Server 26.04.1 LTS in VirtualBox; all output below is after a reboot (everything restarts by itself).
+
+isa@kidsway-server:~/kidsway$ docker compose -f deploy/docker-compose.yml ps
+# (COMMAND and CREATED columns removed for width)
+NAME                 IMAGE               SERVICE    STATUS                        PORTS
+kidsway-api-1        kidsway-api         api        Up About a minute (healthy)   3000/tcp
+kidsway-nginx-1      nginx:1.27-alpine   nginx      Up About a minute             0.0.0.0:80->80/tcp, [::]:80->80/tcp, 0.0.0.0:443->443/tcp, [::]:443->443/tcp
+kidsway-verifier-1   kidsway-verifier    verifier   Up About a minute (healthy)   8000/tcp
+# Only nginx publishes ports. 3000/tcp and 8000/tcp are container-internal.
+
+isa@kidsway-server:~/kidsway$ sudo ufw status
+Status: active
+
+To                         Action      From
+--                         ------      ----
+443/tcp                    ALLOW       Anywhere                   # KidsWay HTTPS
+80/tcp                     ALLOW       Anywhere                   # HTTP -> HTTPS redirect
+22/tcp                     ALLOW       192.168.56.0/24            # SSH from admin network only
+22/tcp                     LIMIT       Anywhere                   # SSH brute-force throttle
+443/tcp (v6)               ALLOW       Anywhere (v6)              # KidsWay HTTPS
+80/tcp (v6)                ALLOW       Anywhere (v6)              # HTTP -> HTTPS redirect
+22/tcp (v6)                LIMIT       Anywhere (v6)              # SSH brute-force throttle
+
+isa@kidsway-server:~/kidsway$ docker network inspect kidsway_app kidsway_ai | grep -i '"internal"'
+        "Internal": true,
+        "Internal": true,
+
+isa@kidsway-server:~/kidsway$ docker compose -f deploy/docker-compose.yml exec nginx wget -qO- -T 3 http://verifier:8000/healthz || echo "nginx cannot reach verifier: OK"
+wget: bad address 'verifier:8000'
+nginx cannot reach verifier: OK
+# The verifier is on the "ai" network (api only). nginx cannot even resolve its name.
+
+isa@kidsway-server:~/kidsway$ docker compose -f deploy/docker-compose.yml exec api wget -qO- -T 3 https://example.com || echo "no internet from api: OK"
+wget: bad address 'example.com'
+no internet from api: OK
+# A compromised API could not send stolen data out or download tools.
+
+# From Windows: https://192.168.56.10/.env -> 404 Not Found (nginx routes only the app, /api, /media and /healthz).

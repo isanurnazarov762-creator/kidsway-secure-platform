@@ -1,7 +1,9 @@
 # Lab guide: build and attack KidsWay on your own Windows laptop
 
 Time: about one evening for parts 1-3, one more for parts 4-5.
-You need: Windows 10/11, 8 GB RAM (16 GB is more comfortable), 30 GB free disk.
+You need: Windows 10/11 with virtualization enabled, 8 GB RAM (16 GB is more comfortable), 30 GB free disk. Everything is free: VirtualBox, Ubuntu, Nmap.
+
+Tested on: Windows 11, VirtualBox 7, Ubuntu Server 26.04.1 LTS. Real results: README, *Lab results*.
 
 Take the screenshots marked 📸. They go into the README and prove you did it yourself.
 
@@ -34,22 +36,24 @@ Your data is saved in `data/kidsway.db`; the encryption keys are in `.env.local`
 
 ## Part 1. Ubuntu server VM
 
-1. Install **VirtualBox** and download **Ubuntu Server 24.04 LTS** (ISO).
-2. Create a VM: 2 CPUs, 2 GB RAM, 20 GB disk.
-3. Network:
+1. Install **VirtualBox** and download **Ubuntu Server LTS** (ISO, 24.04 or 26.04).
+2. VirtualBox → **Network** → **Host-only Networks**: one adapter with IPv4 `192.168.56.1`, mask `255.255.255.0`, **DHCP server off** (we set a static address).
+3. Create a VM: 2 CPUs, **4 GB RAM** (the AI verifier needs about 1 GB), 30 GB disk.
+4. Network:
    - Adapter 1: **NAT** (internet for updates)
-   - Adapter 2: **Host-only Adapter** (`VirtualBox Host-Only Ethernet Adapter`, network 192.168.56.0/24)
-4. Install Ubuntu, tick **Install OpenSSH server**.
-5. Give the host-only adapter a static address. Edit `/etc/netplan/50-cloud-init.yaml` (the second interface is often `enp0s8`):
+   - Adapter 2: **Host-only Adapter** (the one from step 2)
+5. Install Ubuntu. On the storage screen, edit the `ubuntu-lv` volume to use the whole disk (the installer uses about half by default). Tick **Install OpenSSH server**.
+6. Give the host-only adapter a static address. `ip -br a` shows the interface names (the second one is usually `enp0s8`). Create `/etc/netplan/60-hostonly.yaml` with `sudo nano`:
    ```yaml
    network:
      version: 2
      ethernets:
-       enp0s3: { dhcp4: true }
-       enp0s8: { addresses: [192.168.56.10/24] }
+       enp0s8:
+         dhcp4: false
+         addresses: [192.168.56.10/24]
    ```
-   then `sudo netplan apply`.
-6. From Windows: `ssh youruser@192.168.56.10` 📸
+   then `sudo chmod 600 /etc/netplan/60-hostonly.yaml && sudo netplan apply`, and `ip -br a` again.
+7. From Windows: `ssh youruser@192.168.56.10`. The first time, SSH shows the server's key fingerprint. Compare it with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` in the VM console before typing `yes`: that is what stops a man-in-the-middle. 📸
 
 ## Part 2. Docker and the app
 
@@ -59,9 +63,8 @@ sudo apt update && sudo apt -y upgrade
 sudo apt -y install docker.io docker-compose-v2 git ufw fail2ban nmap
 sudo usermod -aG docker $USER && newgrp docker
 
-sudo mkdir -p /opt/kidsway && sudo chown $USER /opt/kidsway
-git clone https://github.com/<your-username>/kidsway-secure-platform.git /opt/kidsway
-cd /opt/kidsway
+git clone https://github.com/<your-username>/kidsway-secure-platform.git ~/kidsway
+cd ~/kidsway
 
 # secrets
 cp .env.example .env
@@ -73,6 +76,7 @@ grep '^VERIFIER_KEY=' .env > .env.verifier && chmod 600 .env.verifier   # the AI
 
 # TLS certificate for the lab
 sh deploy/certs/generate-dev-cert.sh
+sudo chown root:root deploy/certs/kidsway.key   # nginx starts as root with all capabilities dropped, so root must own the key
 
 # folder for the security log (the container runs as uid 1000)
 sudo chown 1000:1000 deploy/logs
@@ -103,9 +107,11 @@ curl.exe -k -s -o NUL -w "%{http_code}\n" https://192.168.56.10/.env      # 404:
 ```bash
 sudo ADMIN_NET=192.168.56.0/24 sh deploy/ufw-setup.sh
 sudo cp deploy/fail2ban/filter.d/kidsway.conf /etc/fail2ban/filter.d/
-sudo cp deploy/fail2ban/jail.d/kidsway.conf /etc/fail2ban/jail.d/
+# the jail file says /opt/kidsway; write the real path of your clone
+sed "s#/opt/kidsway#$HOME/kidsway#" deploy/fail2ban/jail.d/kidsway.conf | sudo tee /etc/fail2ban/jail.d/kidsway.conf
+touch deploy/logs/security.log
 sudo systemctl restart fail2ban
-sudo fail2ban-client status kidsway
+sudo fail2ban-client status kidsway   # "File list" must show your real security.log
 ```
 📸 `ufw status verbose` and `fail2ban-client status kidsway`.
 
@@ -120,19 +126,19 @@ docker compose -f deploy/docker-compose.yml exec api wget -qO- -T 3 https://exam
 
 ## Part 4. Scan and attack from outside
 
-Install **Nmap for Windows** (nmap.org, includes Zenmap), then:
+Install **Nmap for Windows** (with Npcap): `winget install -e --id Insecure.Nmap`, then open a new terminal:
 ```powershell
-nmap -sS -sV -p- 192.168.56.10
-nmap --script ssl-enum-ciphers -p 443 192.168.56.10
+nmap -Pn -p 22,80,443,3000,8000 192.168.56.10
+nmap -Pn -p- --min-rate 1000 192.168.56.10            # all 65,535 ports, about 2 minutes
+nmap -Pn -p 443 --script ssl-enum-ciphers 192.168.56.10
 ```
-Expected: 22, 80, 443 open; **3000 not visible**; only TLS 1.2 and 1.3 offered. 📸
+Expected: 22, 80, 443 open; **3000 and 8000 filtered**; only TLS 1.2 and 1.3, `least strength: A`. 📸
 
-Trigger fail2ban with repeated bad logins (PowerShell):
+Trigger fail2ban with a forged session token (PowerShell):
 ```powershell
-1..30 | % { curl.exe -k -s -o NUL -w "%{http_code} " -H "content-type: application/json" `
-  -d '{\"phone\":\"+60123456789\",\"challengeId\":\"fake\",\"code\":\"000000\"}' https://192.168.56.10/api/auth/otp/verify }
+1..25 | % { curl.exe -k -s -o NUL --max-time 3 -w "%{http_code} " -H "Authorization: Bearer fakefakefakefakefake$_" https://192.168.56.10/api/settings }
 ```
-You will see `400`, then `429` (nginx and app rate limits), and then the connection stops responding: your Windows host is banned.
+You will see `401` about 20 times and then `000`: the connection stops responding because your Windows host is banned. Repeated wrong login codes (`/api/auth/otp/verify`) work too, but nginx's rate limit answers `429` first, so it takes longer.
 On the VM:
 ```bash
 sudo fail2ban-client status kidsway        # your IP 192.168.56.1 in "Banned IP list"
@@ -157,6 +163,10 @@ Optional, stronger: run **OWASP ZAP** (free) against `https://192.168.56.10/api/
 | `node: bad option` or `.ts` not running | Node is older than 22.18. Install the current Node 22 LTS. |
 | VM has no 192.168.56.10 | Check Adapter 2 is "Host-only" and the interface name in netplan (`ip a`). |
 | `docker compose` cannot write `security.log` | `sudo chown 1000:1000 deploy/logs` |
+| verifier keeps restarting, log says `libGL.so.1` | Old Dockerfile: `git pull`, then `docker compose -f deploy/docker-compose.yml up -d --build` |
+| nginx exits with `cannot load certificate key` | `sudo chown root:root deploy/certs/kidsway.key` |
+| fail2ban never bans | `sudo fail2ban-client status kidsway`: "File list" must be your real `deploy/logs/security.log` (see Part 3) |
+| Windows: `WinError 10013` when the verifier starts | That port is reserved by Windows. The default is 5091; or set another with `$env:VERIFIER_PORT` and `VERIFIER_URL` in `.env.dev`. |
 | Browser warns about the certificate | Expected with a self-signed lab certificate. Use `-k` with curl. |
 | You banned yourself from SSH | Use the VirtualBox console window and `sudo fail2ban-client unban --all`. |
 | Map is grey, address search says "not available" | The app needs internet for OpenStreetMap. You can still move the pin and type the address. |

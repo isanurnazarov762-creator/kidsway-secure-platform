@@ -31,7 +31,7 @@ py -3.12 -m venv .venv
 pip install -r requirements.txt
 python download_models.py          # 2 files, about 37 MB, SHA-256 checked
 python -m unittest -v              # 31 tests; the 4 real-model tests now run too
-python server.py                   # http://127.0.0.1:8090
+python server.py                   # http://127.0.0.1:5091
 ```
 
 `server.py` reads `VERIFIER_KEY` from `../.env.local`, which `npm run dev` creates. Then start the API in a second terminal (`npm run dev`) and apply on http://localhost:3000/careers with the optional face-check consent ticked.

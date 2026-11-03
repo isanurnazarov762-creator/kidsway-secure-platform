@@ -6,6 +6,9 @@ WORKDIR /srv
 RUN apt-get update && apt-get install -y --no-install-recommends libglib2.0-0 libgomp1 && rm -rf /var/lib/apt/lists/*
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
+# rapidocr pulls in the desktop build of OpenCV, which needs libGL (not in a server image).
+# Replace it with the headless build: smaller, and no GUI libraries in the container.
+RUN pip uninstall -y opencv-python && pip install --no-cache-dir --force-reinstall --no-deps opencv-python-headless==4.10.0.84
 COPY kwverify ./kwverify
 COPY server.py download_models.py ./
 RUN python download_models.py && chmod -R a-w /srv

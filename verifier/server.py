@@ -7,7 +7,7 @@ GET  /healthz
 Every POST must be signed by the API (see kwverify/auth.py). Images are processed in memory
 and forgotten when the request ends. Logs contain event codes only: never names, numbers or images.
 
-Run (development):  python server.py            -> http://127.0.0.1:8090
+Run (development):  python server.py            -> http://127.0.0.1:5091
 Settings: VERIFIER_KEY (base64, same as the API), VERIFIER_HOST, VERIFIER_PORT, VERIFIER_MODELS
 """
 from __future__ import annotations
@@ -135,7 +135,7 @@ def main() -> None:
         faces = None
     ocr = load_engine()
     host = os.environ.get("VERIFIER_HOST", "127.0.0.1")
-    port = int(os.environ.get("VERIFIER_PORT", "8090"))
+    port = int(os.environ.get("VERIFIER_PORT", "5091"))
     srv = ThreadingHTTPServer((host, port), make_handler(App(signer, faces, ocr)))
     srv.timeout = 30
     log("start", host=host, port=port, faces=faces is not None, ocr=ocr.name)
