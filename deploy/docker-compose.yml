@@ -41,9 +41,14 @@ services:
       NODE_ENV: production
       TRUST_PROXY: "1"
       VERIFIER_URL: http://verifier:8000
+      # LAB ONLY: no real SMS gateway, so login codes go to deploy/outbox/sms.log on the server
+      # (mode 0600, readable by the server admin only). Remove both lines when a real SMS provider is set.
+      SMS_PROVIDER: outbox
+      SMS_OUTBOX_FILE: /outbox/sms.log
     volumes:
       - api_data:/data
       - ./logs:/logs              # security.log, read by fail2ban on the host
+      - ./outbox:/outbox          # lab SMS outbox (see above)
     networks: [app, ai]           # internal only: no published ports, no internet access
     read_only: true
     tmpfs: [/tmp]

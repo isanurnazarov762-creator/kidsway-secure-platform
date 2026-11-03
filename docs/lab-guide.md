@@ -15,7 +15,7 @@ Take the screenshots marked 📸. They go into the README and prove you did it y
 2. Open the project folder in VS Code, open a terminal and run:
    ```powershell
    node -v          # must show v22.18 or newer
-   npm test         # 54 tests should pass
+   npm test         # 56 tests should pass
    npm run attack:handover
    npm run attack:otp
    npm run attack:idor
@@ -78,8 +78,9 @@ grep '^VERIFIER_KEY=' .env > .env.verifier && chmod 600 .env.verifier   # the AI
 sh deploy/certs/generate-dev-cert.sh
 sudo chown root:root deploy/certs/kidsway.key   # nginx starts as root with all capabilities dropped, so root must own the key
 
-# folder for the security log (the container runs as uid 1000)
-sudo chown 1000:1000 deploy/logs
+# folders for the security log and the lab SMS outbox (the container runs as uid 1000)
+sudo chown 1000:1000 deploy/logs deploy/outbox
+chmod 700 deploy/outbox
 
 docker compose -f deploy/docker-compose.yml up -d --build
 docker compose -f deploy/docker-compose.yml ps
@@ -92,6 +93,12 @@ docker compose -f deploy/docker-compose.yml exec -e ADMIN_PHONE=+60123456789 api
 # a second vetting officer (new Guardians need two approvals in production)
 docker compose -f deploy/docker-compose.yml exec -e ADMIN_PHONE=+60123456780 -e ADMIN_NAME="Officer 2" api node --disable-warning=ExperimentalWarning src/seed.ts
 ```
+
+Log in. The lab has no real SMS gateway, so the code goes to the **SMS outbox**, a file on the server that only you can read (the browser never sees it):
+```bash
+tail -f deploy/outbox/sms.log     # leave it open; Ctrl+C to stop
+```
+Open `https://192.168.56.10`, enter the admin phone, and type the 6-digit code that appears in the outbox. Phone numbers there are masked (`+6012***6789`). Remove `SMS_PROVIDER`/`SMS_OUTBOX_FILE` from `docker-compose.yml` when a real SMS provider is configured.
 
 From Windows (PowerShell):
 ```powershell

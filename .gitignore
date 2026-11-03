@@ -4,6 +4,7 @@ data/
 deploy/certs/*.key
 deploy/certs/*.crt
 deploy/logs/*.log
+deploy/outbox/*.log
 .env.local
 .env.verifier
 verifier/models/*.onnx
