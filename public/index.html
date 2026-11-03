@@ -11,10 +11,12 @@
   <link rel="apple-touch-icon" href="/static/icon-192.png">
   <link rel="stylesheet" href="/static/app.css">
   <!-- No inline scripts or styles: the Content-Security-Policy only allows files from this server. -->
+  <!-- The parent app loads only the shared core and its own code. -->
   <script src="/static/map.js" defer></script>
-  <script src="/static/app.js" defer></script>
+  <script src="/static/core.js" defer></script>
+  <script src="/static/parent.js" defer></script>
 </head>
-<body>
+<body data-app="parent">
   <div id="app"><p class="boot">Loading KidsWay…</p></div>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>

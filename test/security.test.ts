@@ -79,7 +79,7 @@ describe("Authorisation (roles and object ownership)", () => {
     const s = await api.tripInProgress();
     const otherPhone = "+60155555555";
     await api.call("POST", "/api/admin/escorts", { phone: otherPhone, name: "Other escort" }, s.admin.token);
-    const other = await api.login(otherPhone);
+    const other = await api.login(otherPhone, "Other escort", "guardian");
     assert.equal((await api.call("GET", `/api/trips/${s.tripId}`, undefined, other.token)).status, 404);
     assert.equal((await api.call("GET", `/api/children/${s.childId}`, undefined, other.token)).status, 404);
     assert.equal((await api.call("POST", `/api/trips/${s.tripId}/location`, { lat: 3.1, lng: 101.7 }, other.token)).status, 404);

@@ -3,18 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#3a5fd0">
+  <meta name="theme-color" content="#0f7f74">
   <meta name="description" content="Become a KidsWay Guardian: travel with children to school and classes across Malaysia. Open to women aged 20 to 55. Every Guardian is security-checked.">
   <title>Become a KidsWay Guardian</title>
-  <link rel="icon" href="/static/icon-192.png">
+  <link rel="manifest" href="/guardian/manifest.webmanifest">
+  <link rel="icon" href="/static/icon-guardian-192.png">
+  <link rel="apple-touch-icon" href="/static/icon-guardian-192.png">
   <link rel="stylesheet" href="/static/app.css">
   <!-- No inline scripts or styles: the Content-Security-Policy only allows files from this server. -->
   <script src="/static/careers.js" defer></script>
 </head>
-<body class="careers">
+<body class="careers" data-app="guardian">
   <header class="c-top">
-    <a class="c-brand" href="/careers"><span class="logo" aria-hidden="true"></span><span class="wm">Kids<b>Way</b></span><span class="c-sub">Guardians</span></a>
-    <a class="btn small" href="#apply">Apply</a>
+    <a class="c-brand" href="/guardian/apply"><span class="logo" aria-hidden="true"></span><span class="wm">Kids<b>Way</b></span><span class="c-sub">Guardians</span></a>
+    <span class="c-actions"><a class="btn small ghost" href="/guardian/">Sign in</a><a class="btn small" href="#apply">Apply</a></span>
   </header>
 
   <main>
@@ -34,7 +36,7 @@
     <section class="c-band">
       <h2>What a Guardian does</h2>
       <div class="c-grid">
-        <div class="card"><b>Picks up</b><p class="muted">Meets the child at home or school at the booked time, with the trip in the KidsWay app.</p></div>
+        <div class="card"><b>Picks up</b><p class="muted">Meets the child at home or school at the booked time, with the trip in the KidsWay Guardian app.</p></div>
         <div class="card"><b>Travels with them</b><p class="muted">On foot, by public transport, taxi or car. The parent sees the trip live on the map.</p></div>
         <div class="card"><b>Hands over safely</b><p class="muted">Only to the trusted person, who must give the one-time handover code.</p></div>
         <div class="card"><b>Sends a photo report</b><p class="muted">One photo at the handover; the parent confirms and the trip is done.</p></div>
@@ -92,7 +94,7 @@
     </section>
   </main>
 
-  <footer class="c-foot"><p class="muted">© KidsWay Malaysia · <a href="/">Parent app</a></p></footer>
+  <footer class="c-foot"><p class="muted">© KidsWay Malaysia · <a href="/guardian/">Already a Guardian? Sign in</a> · <a href="/">KidsWay for parents</a></p></footer>
   <div class="toast" id="toast" role="status" hidden></div>
 </body>
 </html>

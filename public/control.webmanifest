@@ -1,0 +1,26 @@
+{
+  "name": "KidsWay Control",
+  "short_name": "Control",
+  "description": "KidsWay staff console: dispatch, hiring and vetting, team, prices, audit log.",
+  "start_url": "/control/",
+  "scope": "/control/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#eef2fa",
+  "theme_color": "#1d2540",
+  "icons": [
+    {
+      "src": "/static/icon-control-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icon-control-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "id": "/control/"
+}

@@ -57,7 +57,7 @@ async function uploadAll(token: string) {
 async function officer(name = "Officer") {
   const p = phone();
   api.app.createStaff(p, name, "admin", "vetting");
-  return api.login(p);
+  return api.login(p, name, "control");
 }
 async function passAll(officerToken: string, id: string) {
   await api.call("POST", `/api/admin/applicants/${id}/docs`, { kind: "edkk_result", mime: "application/pdf", data: PDF("edkk " + id) }, officerToken);
@@ -140,7 +140,7 @@ describe("Vetting (officers)", () => {
     const parent = await api.login();
     const dispatchPhone = phone();
     api.app.createStaff(dispatchPhone, "Dispatcher", "admin");
-    const dispatcher = await api.login(dispatchPhone);
+    const dispatcher = await api.login(dispatchPhone, "Dispatcher", "control");
     const off = await officer();
     assert.equal((await api.call("GET", `/api/admin/applicants/${a.id}`, undefined, parent.token)).status, 403);
     assert.equal((await api.call("GET", `/api/admin/applicants/${a.id}`, undefined, dispatcher.token)).status, 403);
@@ -175,7 +175,7 @@ describe("Vetting (officers)", () => {
     assert.equal((await api.call("POST", `/api/admin/applicants/${a.id}/approve`, {}, offB.token)).body.approved, false);
     const final = await api.call("POST", `/api/admin/applicants/${a.id}/approve`, {}, offA.token);
     assert.equal(final.body.approved, true);
-    const guardian = await api.login(a.phone);
+    const guardian = await api.login(a.phone, "Guardian", "guardian");
     assert.equal((await api.call("GET", "/api/me", undefined, guardian.token)).body.role, "escort");
     assert.equal((await api.call("GET", "/api/careers/application", undefined, a.token)).body.status, "approved");
   });
@@ -205,7 +205,7 @@ describe("Vetting (officers)", () => {
     await passAll(offA.token, a.id);
     await api.call("POST", `/api/admin/applicants/${a.id}/approve`, {}, offA.token);
     const fin = await api.call("POST", `/api/admin/applicants/${a.id}/approve`, {}, offB.token);
-    const guardian = await api.login(a.phone);
+    const guardian = await api.login(a.phone, "Guardian", "guardian");
     // Give her a trip.
     const parent = await api.login();
     const child = await api.call("POST", "/api/children", { name: "Mia" }, parent.token);
@@ -214,7 +214,7 @@ describe("Vetting (officers)", () => {
     const r = await api.call("POST", `/api/admin/applicants/${a.id}/checks`, { check: "edkk", result: "fail", note: "record found on re-check" }, offA.token);
     assert.equal(r.body.suspended, true);
     assert.equal((await api.call("GET", "/api/trips", undefined, guardian.token)).status, 401); // her session was revoked
-    const again = await api.login(a.phone);
+    const again = await api.login(a.phone, "Guardian", "guardian");
     assert.equal((await api.call("GET", "/api/me", undefined, again.token)).body.error, "account_suspended");
     assert.equal((await api.call("GET", `/api/trips/${trip.body.trip.id}`, undefined, parent.token)).body.status, "requested");
   });

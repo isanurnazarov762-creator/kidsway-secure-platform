@@ -32,9 +32,9 @@ export async function startTarget(insecure: boolean) {
     try { json = await res.json(); } catch { /* not json */ }
     return { status: res.status, body: json };
   }
-  async function login(phone = `+60${++n}`) {
+  async function login(phone = `+60${++n}`, app = "parent") {
     const a = await call("POST", "/api/auth/otp/request", { phone });
-    const b = await call("POST", "/api/auth/otp/verify", { phone, challengeId: a.body.challengeId, code: a.body.devCode });
+    const b = await call("POST", "/api/auth/otp/verify", { phone, challengeId: a.body.challengeId, code: a.body.devCode, app });
     return { token: b.body.token as string, phone };
   }
   async function tripInProgress() {
@@ -46,10 +46,10 @@ export async function startTarget(insecure: boolean) {
     }, parent.token);
     const adminPhone = `+60${++n}`;
     app.createStaff(adminPhone, "Admin", "admin");
-    const admin = await login(adminPhone);
+    const admin = await login(adminPhone, "control");
     const escortPhone = `+60${++n}`;
     const esc = await call("POST", "/api/admin/escorts", { phone: escortPhone, name: "Escort" }, admin.token);
-    const escort = await login(escortPhone);
+    const escort = await login(escortPhone, "guardian");
     await call("POST", `/api/admin/trips/${trip.body.trip.id}/assign`, { escortId: esc.body.id }, admin.token);
     await call("POST", `/api/trips/${trip.body.trip.id}/start`, {}, escort.token);
     return { parent, escort, admin, childId: child.body.id as string, tripId: trip.body.trip.id as string, realCode: trip.body.handoverCodes[0].code as string };

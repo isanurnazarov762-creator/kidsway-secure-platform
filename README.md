@@ -6,7 +6,7 @@ KidsWay lets parents book a trusted escort who takes their child from point A to
 
 > Portfolio project by Isa. The product (website and app prototype) was designed for a university startup course; this repository is my own security engineering work on top of it.
 
-![tests](https://img.shields.io/badge/tests-56%20passing-2ea44f) ![deps](https://img.shields.io/badge/API%20runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
+![tests](https://img.shields.io/badge/tests-63%20passing-2ea44f) ![deps](https://img.shields.io/badge/API%20runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
 
 ## Results at a glance
 
@@ -30,18 +30,20 @@ Full write-up: [**Security assessment report**](docs/pentest-report.md).
 | Network design | Segmented lab (VirtualBox + Docker), IP plan, firewall rule table, production VPC design with public/private/isolated subnets and VPN-only admin | [`docs/network-design.md`](docs/network-design.md) |
 | Secure API | Node.js + TypeScript, zero third-party runtime dependencies | [`src/`](src/) |
 | Hardening | nginx (TLS 1.2/1.3, HSTS, rate limits, path allow-list), Docker (non-root, read-only, no capabilities, internal network), UFW, fail2ban | [`deploy/`](deploy/), [`Dockerfile`](Dockerfile) |
-| Working app | Installable web app (PWA) for parents, escorts and admins: OpenStreetMap map with address search, one-time trips there and back, weekly plans, live location, photo reports, admin prices | [`public/`](public/) |
-| Guardian hiring and vetting | Careers page and application portal; MyKad-based eligibility; e-DKK, police, references, interview, first aid and training checks with required evidence; four-eyes approval; yearly re-checks with instant suspension; encrypted documents; PDPA erasure | [`src/hiring.ts`](src/hiring.ts), [`public/careers.html`](public/careers.html) |
+| Three apps, one API | **KidsWay** for parents, **KidsWay Guardian** for escorts (job application included), **KidsWay Control** for staff, like a ride-hailing company. Each role signs in only in its own app, sessions are bound to the app, staff sessions expire after 15 idle minutes, and each page loads only its own code and device permissions | [`public/`](public/), [`test/apps.test.ts`](test/apps.test.ts) |
+| Working app | Installable web apps (PWA): OpenStreetMap map with address search, one-time trips there and back, weekly plans, live location, photo reports, admin prices | [`public/`](public/) |
+| Guardian hiring and vetting | Careers page and application portal; MyKad-based eligibility; e-DKK, police, references, interview, first aid and training checks with required evidence; four-eyes approval; yearly re-checks with instant suspension; encrypted documents; PDPA erasure | [`src/hiring.ts`](src/hiring.ts), [`public/careers.html`](public/careers.html) (served at `/guardian/apply`) |
 | AI identity check | Python service on its own internal network: active liveness (random head-turn prompts), selfie vs MyKad face match, MyKad OCR; HMAC-signed calls, SHA-256-pinned models, no image ever stored; the AI suggests, an officer decides | [`verifier/`](verifier/) |
-| Verification | 56 Node tests (25 security, 10 feature, 11 hiring, 8 AI, 2 lab SMS outbox) and 31 Python verifier tests, 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
+| Verification | 63 Node tests (25 security, 10 feature, 11 hiring, 8 AI, 7 separate apps, 2 lab SMS outbox) and 31 Python verifier tests, 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
 | Lab guide | Step-by-step build on Windows + VirtualBox, with nmap and fail2ban checks | [`docs/lab-guide.md`](docs/lab-guide.md) |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  P[Parent app] -- HTTPS --> N
-  E[Escort app] -- HTTPS --> N
+  P["KidsWay<br/>(parents)"] -- HTTPS --> N
+  E["KidsWay Guardian<br/>(escorts)"] -- HTTPS --> N
+  C["KidsWay Control<br/>(staff)"] -- HTTPS --> N
   subgraph Server["Ubuntu server: UFW + fail2ban"]
     N["nginx<br/>TLS, rate limits<br/>ports 80/443"]
     subgraph Internal["Docker internal network: no internet, no published ports"]
@@ -87,7 +89,25 @@ flowchart LR
 - UFW default deny, SSH only from the admin network; fail2ban bans IPs from the API's security log.
 - **Zero third-party runtime dependencies in the API** (Node's built-in HTTP, crypto, SQLite and test runner). The AI verifier uses three exact-pinned Python packages and SHA-256-pinned models.
 
-## The app
+## The apps
+
+Like Grab (Grab, Grab Driver and an internal console), KidsWay is three apps on one API:
+
+![KidsWay for parents, KidsWay Guardian for escorts, KidsWay Control for staff](docs/screenshots/three-apps.png)
+
+| App | Address | Who | Installs as |
+|---|---|---|---|
+| **KidsWay** | `/` | parents | "KidsWay" (blue) |
+| **KidsWay Guardian** | `/guardian/`, applying at `/guardian/apply` | escorts and job applicants | "Guardian" (teal) |
+| **KidsWay Control** | `/control/` | admins and vetting officers; sidebar layout for a computer | "Control" (navy) |
+
+Why three apps is a security decision, not only a product one:
+
+- **A role signs in only through its own app.** An admin's phone number gets `wrong_app` in the parent app, a parent cannot open Control, and Guardian and Control never create accounts (Guardians come only from Hiring). The check runs after the SMS code is proven, so it reveals nothing to someone who does not own the number.
+- **Sessions are bound to the app** they were issued to; a session stops working if the account's role changes. **Staff sessions** (Control) expire after 15 idle minutes and 8 hours at most, because one staff session opens every family's data.
+- **Least code**: each page loads the shared core plus its own file, so a parent's phone never downloads the staff console, and each app's service worker caches only its own files.
+- **Least device permission** per app (`Permissions-Policy`): Guardian may use GPS and the camera, parents GPS only (to pin an address), Control neither.
+- Each app keeps its own session in the browser. In production the three apps would sit on separate subdomains (`app.`, `guardian.`, `control.`) so the browser isolates their storage completely, and `control.` would be reachable only over the staff VPN (see [network design](docs/network-design.md)).
 
 ![KidsWay app on a phone: parent home, booking there and back on the map, handover codes, regular plan, escort live trip, parent live view with photo, admin dispatch](docs/screenshots/web-app.png)
 
@@ -100,9 +120,9 @@ A mobile-first web app that installs on a phone like a normal app (PWA). Data is
 - Live escort location on the map, photo report, confirm the handover. Cancel before the trip starts. Pause, resume or end plans.
 - Children with encrypted health notes; home address as the default pick-up.
 
-**Escort**: assigned trips, start, share GPS (or simulate driving for a demo), check the receiver's code, take the photo with the phone camera (resized and stripped of metadata on the phone).
+**Guardian (escort)**: assigned trips, start, share GPS (or simulate driving for a demo), check the receiver's code, take the photo with the phone camera (resized and stripped of metadata on the phone).
 
-**Admin**: dispatch (assign trips and regular escorts), escorts, **prices** (base, per extra child, per extra stop, weekly discount; the server calculates every price), audit log.
+**Staff (KidsWay Control)**: dispatch (assign trips and regular escorts), escorts, **prices** (base, per extra child, per extra stop, weekly discount; the server calculates every price), audit log.
 
 ### Hiring: who is allowed to be alone with children
 
@@ -110,7 +130,7 @@ A mobile-first web app that installs on a phone like a normal app (PWA). Data is
 
 The biggest risk for a children's escort service is hiring the wrong person, so Guardians (the escorts) are recruited through a security-vetting pipeline:
 
-1. **Apply** on `/careers`: phone proven by SMS, MyKad, two references, explicit consent. Age and gender are read from the MyKad number on the server (the role is for women aged 20 to 55).
+1. **Apply** in KidsWay Guardian (`/guardian/apply`): phone proven by SMS, MyKad, two references, explicit consent. Age and gender are read from the MyKad number on the server (the role is for women aged 20 to 55).
 2. **Documents**: MyKad front and back, selfie with MyKad, certificates. File signatures checked, PDFs with scripts refused, everything encrypted at rest.
 3. **Seven checks** by vetting officers: identity, **e-DKK** (JKM's check against the register of sexual offences against children), police record, references, interview, first aid, training with a shadow trip. A check can pass only with its evidence on file.
 4. **Four-eyes approval**: two different officers approve after every check passed. Only then is an escort account created.
@@ -122,14 +142,14 @@ Separation of duties: only admins with the `vetting` permission open application
 
 ### Try it on one computer
 
-`npm run dev`, then open **http://localhost:3000**. Each browser tab is a separate user:
+`npm run dev`, then open the three apps: **http://localhost:3000** (parents), **http://localhost:3000/guardian/** (Guardians), **http://localhost:3000/control/** (staff). Each browser tab is a separate user:
 
-1. **Applicant**: open **http://localhost:3000/careers**, apply with a new number and a MyKad number of a woman aged 20 to 55 (for example `961028-10-5684`), upload any photos as documents.
-2. **Officer 1**: `+60100000000` → *Hiring* → open the application → add files for e-DKK and police → pass every check → *Approve*.
-3. **Officer 2**: `+60100000001` in another tab → *Hiring* → *Approve*. The applicant is now a Guardian and logs in with her number.
-4. **Parent**: any `+60` number → add a child → *Home* → *One-time trip* or *Regular plan*.
-5. **Admin**: *Trips* → assign; *Plans* → set the regular escort.
-6. **Guardian**: log in with her number → start → *Simulate driving* → enter the code → photo.
+1. **Applicant**: open **http://localhost:3000/guardian/apply**, apply with a new number and a MyKad number of a woman aged 20 to 55 (for example `961028-10-5684`), upload any photos as documents.
+2. **Officer 1**: `+60100000000` in **Control** → *Hiring* → open the application → add files for e-DKK and police → pass every check → *Approve*.
+3. **Officer 2**: `+60100000001` in Control in another tab → *Hiring* → *Approve*. The applicant is now a Guardian and signs in to **KidsWay Guardian** with her number.
+4. **Parent**: any `+60` number in **KidsWay** → add a child → *Home* → *One-time trip* or *Regular plan*.
+5. **Control**: *Dispatch* → assign; *Plans* → set the regular escort.
+6. **Guardian**: sign in to KidsWay Guardian → start → *Simulate driving* → enter the code → photo.
 7. **Parent**: watch the escort on the map, view the photo, confirm. The trip completes and the location history is deleted.
 
 In development the SMS code is shown on screen ("SMS simulator"). To send real SMS set `SMS_PROVIDER=twilio` and the Twilio keys (see `src/sms.ts`).
@@ -140,7 +160,7 @@ Browsers install an app only over HTTPS (or on `localhost`). Run the lab deploym
 
 ### Page security
 
-Strict Content-Security-Policy (no inline code; only this server plus the two OpenStreetMap hosts for tiles and address search), all server data inserted as text (no XSS), session token per tab, GPS and camera allowed only for this origin.
+Strict Content-Security-Policy (no inline code; only this server plus the two OpenStreetMap hosts for tiles and address search), all server data inserted as text (no XSS), session token per tab and per app, GPS and camera allowed only for this origin and only in the apps that need them.
 
 ## Run it
 
@@ -148,7 +168,7 @@ Requires **Node.js 22.18 or newer**. No `npm install` needed.
 
 ```bash
 npm run dev                 # app + API on http://localhost:3000 (data saved in data/)
-npm test                    # 56 tests
+npm test                    # 63 tests
 cd verifier && python -m unittest   # 31 verifier tests (see verifier/README.md)
 npm run attack:handover     # each attack runs against v0 and v1
 npm run attack:otp

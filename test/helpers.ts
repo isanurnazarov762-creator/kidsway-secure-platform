@@ -27,9 +27,9 @@ export async function startTestServer(overrides: Partial<Config> = {}) {
 
   let phoneSeq = 100000000;
   /** Sign up (or log in) with a phone number through the real OTP flow. */
-  async function login(phone = `+60${++phoneSeq}`, name = "Parent") {
+  async function login(phone = `+60${++phoneSeq}`, name = "Parent", app: "parent" | "guardian" | "control" = "parent") {
     const a = await call("POST", "/api/auth/otp/request", { phone });
-    const b = await call("POST", "/api/auth/otp/verify", { phone, challengeId: a.body.challengeId, code: a.body.devCode, name });
+    const b = await call("POST", "/api/auth/otp/verify", { phone, challengeId: a.body.challengeId, code: a.body.devCode, name, app });
     if (b.status !== 200) throw new Error("login failed " + JSON.stringify(b.body));
     return { token: b.body.token as string, userId: b.body.user.id as string, phone };
   }
@@ -44,10 +44,10 @@ export async function startTestServer(overrides: Partial<Config> = {}) {
     }, parent.token);
     const adminPhone = `+60${++phoneSeq}`;
     app.createStaff(adminPhone, "Admin", "admin");
-    const admin = await login(adminPhone);
+    const admin = await login(adminPhone, "Admin", "control");
     const escortPhone = `+60${++phoneSeq}`;
     const esc = await call("POST", "/api/admin/escorts", { phone: escortPhone, name: "Escort" }, admin.token);
-    const escort = await login(escortPhone);
+    const escort = await login(escortPhone, "Escort", "guardian");
     await call("POST", `/api/admin/trips/${trip.body.trip.id}/assign`, { escortId: esc.body.id }, admin.token);
     await call("POST", `/api/trips/${trip.body.trip.id}/start`, {}, escort.token);
     return { parent, admin, escort, childId: child.body.id as string, tripId: trip.body.trip.id as string, code: trip.body.handoverCodes[0].code as string };

@@ -168,7 +168,7 @@ describe("AI identity check", () => {
     await api.call("POST", "/api/careers/application/docs", { kind: "ic_back", mime: "image/png", data: png() }, t);
     const p = phone();
     api.app.createStaff(p, "Officer", "admin", "vetting");
-    const off = await api.login(p);
+    const off = await api.login(p, "Officer", "control");
     const detail = await api.call("GET", `/api/admin/applicants/${id}`, undefined, off.token);
     assert.equal(detail.body.ai.verdict, "review");
     assert.deepEqual(detail.body.ai.identity.reasons, ["card:name_differs"]);

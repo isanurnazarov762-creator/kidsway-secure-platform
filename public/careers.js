@@ -285,8 +285,8 @@ function statusView(app) {
   }, withdraw));
   return h("div", { class: "stack" },
     h("section", { class: "card" }, h("div", { class: "row" }, h("div", { class: "grow" }, h("b", { class: "big-when" }, app.name), h("small", { class: "muted" }, "Applied " + new Date(app.createdAt * 1000).toLocaleDateString())), h("span", { class: "pill " + cls }, label)),
-      app.status === "approved" ? h("p", { class: "ok-line" }, "Welcome to KidsWay! Open the app and log in with this phone number.") : null,
-      app.status === "approved" ? h("a", { class: "btn", href: "/" }, "Open the KidsWay app") : null,
+      app.status === "approved" ? h("p", { class: "ok-line" }, "Welcome to KidsWay! Sign in to KidsWay Guardian with this phone number.") : null,
+      app.status === "approved" ? h("a", { class: "btn", href: "/guardian/" }, "Sign in to KidsWay Guardian") : null,
       app.status === "rejected" ? h("p", null, "Thank you for applying. We cannot offer you the role at this time. Your data will be erased after 180 days, or now if you withdraw.") : null),
     open ? h("section", { class: "card" }, h("h2", null, "Your documents"), app.missingDocs.length ? h("p", { class: "alert soft" }, "Please upload the required documents so we can start the checks.") : h("p", { class: "muted" }, "Thank you. We have what we need to start."), docs,
       h("p", { class: "muted lock" }, "Files are encrypted on our server and only vetting officers can open them.")) : null,

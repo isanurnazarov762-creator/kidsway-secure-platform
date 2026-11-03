@@ -16,6 +16,8 @@ export type Config = {
   otpMaxAttempts: number;
   sessionIdleSec: number;
   sessionAbsoluteSec: number;
+  staffSessionIdleSec: number;     // KidsWay Control (admins): shorter, a staff session opens every family's data
+  staffSessionAbsoluteSec: number;
   handoverTtlSec: number;
   handoverMaxAttempts: number;
   photoUrlTtlSec: number;
@@ -79,6 +81,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     otpMaxAttempts: 5,
     sessionIdleSec: 30 * 60,
     sessionAbsoluteSec: 12 * 60 * 60,
+    staffSessionIdleSec: 15 * 60,
+    staffSessionAbsoluteSec: 8 * 60 * 60,
     handoverTtlSec: Number(env.HANDOVER_TTL_SEC || 12 * 60 * 60),
     handoverMaxAttempts: 5,
     photoUrlTtlSec: 300,

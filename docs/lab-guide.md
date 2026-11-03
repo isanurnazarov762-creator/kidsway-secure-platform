@@ -15,7 +15,7 @@ Take the screenshots marked 📸. They go into the README and prove you did it y
 2. Open the project folder in VS Code, open a terminal and run:
    ```powershell
    node -v          # must show v22.18 or newer
-   npm test         # 56 tests should pass
+   npm test         # 63 tests should pass
    npm run attack:handover
    npm run attack:otp
    npm run attack:idor
@@ -98,7 +98,7 @@ Log in. The lab has no real SMS gateway, so the code goes to the **SMS outbox**,
 ```bash
 tail -f deploy/outbox/sms.log     # leave it open; Ctrl+C to stop
 ```
-Open `https://192.168.56.10`, enter the admin phone, and type the 6-digit code that appears in the outbox. Phone numbers there are masked (`+6012***6789`). Remove `SMS_PROVIDER`/`SMS_OUTBOX_FILE` from `docker-compose.yml` when a real SMS provider is configured.
+Open **KidsWay Control** at `https://192.168.56.10/control/` (the admin cannot sign in through the parent app at `/`), enter the admin phone, and type the 6-digit code that appears in the outbox. Phone numbers there are masked (`+6012***6789`). Remove `SMS_PROVIDER`/`SMS_OUTBOX_FILE` from `docker-compose.yml` when a real SMS provider is configured.
 
 From Windows (PowerShell):
 ```powershell

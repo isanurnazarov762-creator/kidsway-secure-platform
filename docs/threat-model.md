@@ -115,6 +115,20 @@ The most dangerous attack on a children's escort service is not technical: it is
 
 Limits: the e-DKK check itself is done by JKM, outside this system; the officer uploads the result. The AI face check (verifier/) uses open models: active liveness is weaker than certified eKYC against masks and deepfakes, and error rates may differ between groups of people, so a person always decides. The legal basis for the women-only, 20-55 requirement should be confirmed with a lawyer before launch (Employment Act anti-discrimination provisions).
 
+## 4c. Three apps on one API
+
+KidsWay is split like a ride-hailing company: **KidsWay** (parents, `/`), **KidsWay Guardian** (escorts and applicants, `/guardian/`), **KidsWay Control** (staff, `/control/`).
+
+| ID | STRIDE | Threat | Control | Verified by |
+|---|---|---|---|---|
+| X1 | Elevation of privilege | A staff account is used from a consumer device or app (shared phone, weaker habits), widening where an admin token lives | A role signs in only through its own app (`wrong_app`); the check runs after the SMS code, so it reveals nothing about the number | A1, A2, A4 |
+| X2 | Spoofing | Someone signs up through the Guardian or Control app to get an escort or staff account | No self sign-up there (`not_a_guardian`, `not_staff`); Guardians come only from Hiring, staff only from an admin | A3 |
+| X3 | Elevation of privilege | A stolen or forgotten staff session opens every family's data for hours | Sessions bound to their app; Control sessions expire after 15 idle minutes, 8 hours at most; a session stops when the account's role changes | A5, A6 |
+| X4 | Information disclosure | Parents' devices download and cache the staff console, showing every admin function and endpoint | Each page loads only the shared core and its own file; each service worker caches only its own app | A7 |
+| X5 | Elevation of privilege | A bug in one app uses a device permission it does not need | `Permissions-Policy` per app: camera only in Guardian, GPS in Guardian and the parent app, nothing in Control | A7 |
+
+Limit: in the lab the three apps share one origin, so the browser does not isolate their storage; each app uses its own session key. Production should use separate subdomains, with `control.` reachable only through the staff VPN.
+
 ## 5. Risk rating (before and after)
 
 Likelihood and impact on a 1-3 scale; risk = L x I.

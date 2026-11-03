@@ -298,3 +298,39 @@ body.careers { background: #fff; }
 .cam-dots i { width: 10px; height: 10px; border-radius: 50%; background: rgba(255, 255, 255, .3); }
 .cam-dots i.on { background: #2fbf71; }
 .cam-ov .btn.ghost { background: transparent; color: #fff; border-color: rgba(255, 255, 255, .5); }
+
+/* ---------- three apps: KidsWay (blue), KidsWay Guardian (teal), KidsWay Control (navy, computer screen) ---------- */
+body[data-app="guardian"] { --a: #0f7f74; --a-ink: #0b6159; --a-soft: #dff3f0; --bg: #ecf5f3; }
+body[data-app="guardian"] .logo { background-image: url("/static/icon-guardian-192.png"); }
+body[data-app="guardian"] .bar { background: rgba(236, 245, 243, .92); }
+body[data-app="control"] { --a: #3a5fd0; --bg: #eef1f7; }
+body[data-app="control"] .logo { background-image: url("/static/icon-control-192.png"); background-color: #1d2540; }
+.wm-app { margin-left: 8px; padding: 3px 10px; border-radius: 999px; background: var(--a); color: #fff; font-size: 14px; font-weight: 800; vertical-align: middle; letter-spacing: 0; }
+body[data-app="control"] .wm-app { background: #1d2540; }
+.apply-cta { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; border: 2px solid var(--a-soft); }
+.apply-cta b { color: var(--a-ink); }
+.apply-cta .chev { grid-row: 1 / 3; grid-column: 2; font-size: 26px; color: var(--a); }
+.notice { border-left: 4px solid var(--sun); display: flex; flex-direction: column; gap: 10px; }
+.other-apps { margin-top: 14px; font-size: 13px; }
+.other-apps a { color: var(--a-ink); font-weight: 700; }
+.side-brand { display: none; }
+
+/* KidsWay Control is used at a desk: wide content and a sidebar instead of the phone tab bar. */
+@media (min-width: 900px) {
+  body[data-app="control"] #app { max-width: none; }
+  body[data-app="control"] .screen.has-nav { padding-bottom: 0; padding-left: 232px; }
+  body[data-app="control"] .bar, body[data-app="control"] .content { max-width: 1080px; width: 100%; margin: 0 auto; }
+  body[data-app="control"] .bar { background: transparent; backdrop-filter: none; padding-top: 22px; }
+  body[data-app="control"] .bar-title { font-size: 24px; }
+  body[data-app="control"] .tabbar { left: 0; top: 0; bottom: 0; transform: none; width: 232px; max-width: none; height: auto; flex-direction: column; justify-content: flex-start; gap: 4px; padding: 18px 12px; background: #1d2540; border: 0; }
+  body[data-app="control"] .tabbar a { flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 14.5px; color: #b9c3e0; }
+  body[data-app="control"] .tabbar a.on { background: rgba(255, 255, 255, .1); color: #fff; }
+  body[data-app="control"] .tabbar a:hover { color: #fff; }
+  body[data-app="control"] .tabbar a:last-child { margin-top: auto; }
+  body[data-app="control"] .side-brand { display: flex; align-items: center; gap: 10px; padding: 6px 10px 22px; color: #fff; font-size: 17px; }
+  body[data-app="control"] .side-brand span { color: #8fa6ff; }
+  body[data-app="control"] .toast { bottom: 24px; }
+  body[data-app="control"] .login { max-width: 460px; margin: 0 auto; }
+}
+.c-actions { display: flex; gap: 8px; align-items: center; flex: none; }
+@media (max-width: 440px) { .c-sub { display: none; } .c-actions .btn.small { padding-left: 14px; padding-right: 14px; } }

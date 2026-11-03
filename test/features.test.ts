@@ -19,10 +19,10 @@ async function parentWithChild(name = "Aina") {
 async function adminAndEscort() {
   const adminPhone = nextPhone();
   api.app.createStaff(adminPhone, "Admin", "admin");
-  const admin = await api.login(adminPhone);
+  const admin = await api.login(adminPhone, "Admin", "control");
   const escortPhone = nextPhone();
   const e = await api.call("POST", "/api/admin/escorts", { phone: escortPhone, name: "Siti" }, admin.token);
-  const escort = await api.login(escortPhone);
+  const escort = await api.login(escortPhone, "Escort", "guardian");
   return { admin, escort, escortId: e.body.id as string };
 }
 const HOME = { address: "Jalan Telawi, Bangsar", lat: 3.1319, lng: 101.6713 };

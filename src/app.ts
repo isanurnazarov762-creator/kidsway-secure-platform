@@ -16,6 +16,11 @@ import { decryptField, encryptField, hmac, newId, newToken, randomDigits, safeEq
 type Row = Record<string, any>;
 const SERVICES = ["walk", "public", "taxi", "car", "vip"] as const;
 const ROLES = ["parent", "escort", "admin"] as const;
+// Three apps on one API, like a ride-hailing company: each role signs in only through its own app,
+// and the session remembers which app it was issued to.
+const APPS = ["parent", "guardian", "control"] as const;
+type AppId = (typeof APPS)[number];
+const APP_FOR_ROLE: Record<string, AppId> = { parent: "parent", escort: "guardian", admin: "control" };
 const DAYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -258,6 +263,8 @@ export function createApp(cfg: Config) {
     const code = str(b, "code", { max: 6, re: codeRe })!;
     const name = str(b, "name", { max: 80, optional: true });
     const phone = str(b, "phone", { max: 16, re: PHONE_RE })!;
+    // Which app is signing in. Older clients that do not say are treated as the parent app (the strict default).
+    const app: AppId = b.app === undefined ? "parent" : oneOf(b, "app", APPS);
     sec.limit(rl.otpVerifyIp, ctx.ip, ctx, "otp_verify_ip");
 
     const ch = db.prepare("SELECT * FROM otp_challenges WHERE id = ?").get(challengeId) as Row | undefined;
@@ -276,6 +283,18 @@ export function createApp(cfg: Config) {
     db.prepare("UPDATE otp_challenges SET consumed = 1 WHERE id = ?").run(challengeId);
 
     let user = db.prepare("SELECT * FROM users WHERE phone_hash = ?").get(ch!.phone_hash) as Row | undefined;
+    // These checks run only after the SMS code was proven, so they tell nothing to someone who does not own the phone.
+    if (!user && app !== "parent") {
+      // Guardians are created only through Hiring, staff only by an admin: no self sign-up in those apps.
+      sec.audit(ctx, "login", null, "denied", `no_account app=${app}`);
+      throw new HttpError(403, app === "guardian" ? "not_a_guardian" : "not_staff");
+    }
+    if (user && APP_FOR_ROLE[user.role] !== app) {
+      // An admin cannot sign in through the parent app, a parent cannot open KidsWay Control, and so on.
+      ctx.user = { id: user.id, role: user.role, sessionId: "" };
+      sec.audit(ctx, "login", ["user", user.id], "denied", `wrong_app ${app}`);
+      return [403, { error: "wrong_app", app: APP_FOR_ROLE[user.role] }];
+    }
     if (!user) {
       // Self sign-up always creates a parent. Escorts and admins are created by an admin only.
       const id = newId();
@@ -285,10 +304,10 @@ export function createApp(cfg: Config) {
     }
     const token = newToken();
     const sid = newId();
-    db.prepare("INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen) VALUES (?,?,?,?,?)").run(sid, user.id, sha256(token), now(), now());
+    db.prepare("INSERT INTO sessions (id, user_id, token_hash, created_at, last_seen, app) VALUES (?,?,?,?,?,?)").run(sid, user.id, sha256(token), now(), now(), app);
     ctx.user = { id: user.id, role: user.role, sessionId: sid };
-    sec.audit(ctx, "login", ["user", user.id], "ok");
-    return { token, expiresIn: cfg.sessionIdleSec, user: { id: user.id, role: user.role } };
+    sec.audit(ctx, "login", ["user", user.id], "ok", `app=${app}`);
+    return { token, app, expiresIn: app === "control" ? cfg.staffSessionIdleSec : cfg.sessionIdleSec, user: { id: user.id, role: user.role } };
   });
 
   r.add("POST", "/api/auth/logout", (ctx) => {
@@ -830,28 +849,56 @@ export function createApp(cfg: Config) {
   const TILE_HOST = "https://tile.openstreetmap.org";
   const GEO_HOST = "https://nominatim.openstreetmap.org";
   const PAGE_CSP = `default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data: ${TILE_HOST}; connect-src 'self' ${GEO_HOST}; worker-src 'self'; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`;
-  const PAGE_HEADERS: Record<string, string> = {
+  // Each app asks the browser only for the device permissions it needs (least privilege):
+  // parents may use GPS to pin an address, Guardians need GPS and the camera, KidsWay Control needs neither.
+  const pageHeaders = (perms: string): Record<string, string> => ({
     // OpenStreetMap's usage policies ask for a Referer; only the origin is sent, never the page path.
     "Referrer-Policy": "strict-origin",
-    // The escort app needs GPS and the camera on this origin only.
-    "Permissions-Policy": "geolocation=(self), camera=(self), microphone=()"
-  };
-  const STATIC: Record<string, [string, string]> = {
-    "/": ["index.html", "text/html; charset=utf-8"],
-    "/static/app\\.js": ["app.js", "text/javascript; charset=utf-8"],
-    "/static/map\\.js": ["map.js", "text/javascript; charset=utf-8"],
-    "/static/app\\.css": ["app.css", "text/css; charset=utf-8"],
-    "/careers": ["careers.html", "text/html; charset=utf-8"],
-    "/static/careers\\.js": ["careers.js", "text/javascript; charset=utf-8"],
-    "/static/icon-192\\.png": ["icon-192.png", "image/png"],
-    "/static/icon-512\\.png": ["icon-512.png", "image/png"],
-    "/manifest\\.webmanifest": ["manifest.webmanifest", "application/manifest+json"],
-    "/sw\\.js": ["sw.js", "text/javascript; charset=utf-8"]
+    "Permissions-Policy": perms + ", microphone=(), payment=(), usb=()"
+  });
+  const P_PARENT = pageHeaders("geolocation=(self), camera=()");
+  const P_GUARDIAN = pageHeaders("geolocation=(self), camera=(self)");
+  const P_CONTROL = pageHeaders("geolocation=(), camera=()");
+  const JS = "text/javascript; charset=utf-8", HTML = "text/html; charset=utf-8", PNG = "image/png", MANIFEST = "application/manifest+json";
+  // Three apps, like a ride-hailing company, and each page loads only its own code:
+  // a parent's phone never downloads the code of the staff console.
+  const STATIC: Record<string, [string, string, Record<string, string>]> = {
+    // KidsWay (parents)
+    "/": ["index.html", HTML, P_PARENT],
+    "/manifest\\.webmanifest": ["manifest.webmanifest", MANIFEST, P_PARENT],
+    "/sw\\.js": ["sw.js", JS, P_PARENT],
+    "/static/parent\\.js": ["parent.js", JS, P_PARENT],
+    // KidsWay Guardian (escorts): applying for the job and the daily work in one app
+    "/guardian/": ["guardian.html", HTML, P_GUARDIAN],
+    "/guardian/apply": ["careers.html", HTML, P_GUARDIAN],
+    "/guardian/manifest\\.webmanifest": ["guardian.webmanifest", MANIFEST, P_GUARDIAN],
+    "/guardian/sw\\.js": ["sw.js", JS, P_GUARDIAN],
+    "/static/guardian\\.js": ["guardian.js", JS, P_GUARDIAN],
+    "/static/careers\\.js": ["careers.js", JS, P_GUARDIAN],
+    "/static/icon-guardian-192\\.png": ["icon-guardian-192.png", PNG, P_GUARDIAN],
+    "/static/icon-guardian-512\\.png": ["icon-guardian-512.png", PNG, P_GUARDIAN],
+    // KidsWay Control (staff)
+    "/control/": ["control.html", HTML, P_CONTROL],
+    "/control/manifest\\.webmanifest": ["control.webmanifest", MANIFEST, P_CONTROL],
+    "/control/sw\\.js": ["sw.js", JS, P_CONTROL],
+    "/static/control\\.js": ["control.js", JS, P_CONTROL],
+    "/static/icon-control-192\\.png": ["icon-control-192.png", PNG, P_CONTROL],
+    "/static/icon-control-512\\.png": ["icon-control-512.png", PNG, P_CONTROL],
+    // shared by all three
+    "/static/core\\.js": ["core.js", JS, P_PARENT],
+    "/static/map\\.js": ["map.js", JS, P_PARENT],
+    "/static/app\\.css": ["app.css", "text/css; charset=utf-8", P_PARENT],
+    "/static/icon-192\\.png": ["icon-192.png", PNG, P_PARENT],
+    "/static/icon-512\\.png": ["icon-512.png", PNG, P_PARENT]
   };
   const publicDir = new URL("../public/", import.meta.url);
-  for (const [route, [file, mime]] of Object.entries(STATIC)) {
-    r.add("GET", route, () => ({ __raw: true, mime, csp: PAGE_CSP, headers: PAGE_HEADERS, data: readFileSync(new URL(file, publicDir)) }));
+  for (const [route, [file, mime, headers]] of Object.entries(STATIC)) {
+    // A service worker at /guardian/sw.js can only ever control /guardian/ pages (browser rule).
+    r.add("GET", route, () => ({ __raw: true, mime, csp: PAGE_CSP, headers, data: readFileSync(new URL(file, publicDir)) }));
   }
+  // Fixed redirects (no user input in the target, so no open redirect).
+  const REDIRECTS: Record<string, string> = { "/guardian": "/guardian/", "/control": "/control/", "/careers": "/guardian/apply" };
+  for (const [from, to] of Object.entries(REDIRECTS)) r.add("GET", from, () => ({ __redirect: to }));
 
   // ---------- signed photo links (no session needed, the signature is the permission) ----------
   r.add("GET", "/media/photos/:id", (ctx) => {
@@ -874,7 +921,7 @@ export function createApp(cfg: Config) {
   // =====================================================================
   // Request pipeline
   // =====================================================================
-  const findSession = db.prepare("SELECT s.id, s.user_id, s.created_at, s.last_seen, s.revoked, u.role, u.perms FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?");
+  const findSession = db.prepare("SELECT s.id, s.user_id, s.created_at, s.last_seen, s.revoked, s.app, u.role, u.perms FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?");
   const touchSession = db.prepare("UPDATE sessions SET last_seen = ? WHERE id = ?");
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -900,7 +947,11 @@ export function createApp(cfg: Config) {
         }
         const s = mt && !ctx.applicant ? (findSession.get(sha256(mt[1])) as Row | undefined) : undefined;
         const t = now();
-        if (ctx.applicant) { /* applicant session resolved above */ } else if (!s || s.revoked || t - s.last_seen > cfg.sessionIdleSec || t - s.created_at > cfg.sessionAbsoluteSec) {
+        const staff = s && s.app === "control";
+        const idle = staff ? cfg.staffSessionIdleSec : cfg.sessionIdleSec, absolute = staff ? cfg.staffSessionAbsoluteSec : cfg.sessionAbsoluteSec;
+        // A session is valid only for the app it was issued to: if the role changed since (for example a
+        // parent account was turned into staff), the old session stops working.
+        if (ctx.applicant) { /* applicant session resolved above */ } else if (!s || s.revoked || t - s.last_seen > idle || t - s.created_at > absolute || s.app !== APP_FOR_ROLE[s.role]) {
           sec.log("auth_fail", ctx, { reason: "bad_session" });
           throw new HttpError(401, "unauthorized");
         }
@@ -919,6 +970,12 @@ export function createApp(cfg: Config) {
       }
 
       const out = await m.route.handler(ctx);
+      if (out && typeof out === "object" && (out as Row).__redirect) {
+        res.statusCode = 301;
+        res.setHeader("Location", (out as Row).__redirect);
+        res.end();
+        return;
+      }
       if (out && typeof out === "object" && (out as Row).__raw) {
         const o = out as Row;
         res.statusCode = 200;

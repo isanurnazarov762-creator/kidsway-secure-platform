@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   token_hash  TEXT NOT NULL UNIQUE,          -- only the SHA-256 of the token is stored
   created_at  INTEGER NOT NULL,
   last_seen   INTEGER NOT NULL,
-  revoked     INTEGER NOT NULL DEFAULT 0
+  revoked     INTEGER NOT NULL DEFAULT 0,
+  app         TEXT                           -- the app the session was issued to: parent | guardian | control
 );
 
 CREATE TABLE IF NOT EXISTS children (
@@ -250,7 +251,8 @@ const MIGRATIONS: Array<[string, string, string]> = [
   ["trips", "plan_id", "TEXT"],
   ["trips", "plan_date", "TEXT"],
   ["trips", "price", "REAL"],
-  ["stops", "geo_enc", "TEXT"]
+  ["stops", "geo_enc", "TEXT"],
+  ["sessions", "app", "TEXT"]
 ];
 
 export const DEFAULT_SETTINGS: Record<string, number | string> = {
