@@ -21,3 +21,4 @@ Files 09, 12, 13 and 14 are rendered from the exact terminal text I captured (th
 | `14-fail2ban-ban.png` | Forged-token attack → Windows host banned automatically |
 | `15-sms-outbox.png` | Lab SMS outbox: the login code is written on the server (masked phone), never shown in the browser |
 | `16-lab-admin-login.png` | Admin logged in to the app on the hardened lab server over HTTPS |
+| `17-parent-app-refuses-admin.png` | On the lab server, the admin's number is refused in the parent app (`wrong_app`) after a correct SMS code: staff sign in only through KidsWay Control |
