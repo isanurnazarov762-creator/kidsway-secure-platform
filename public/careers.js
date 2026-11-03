@@ -166,6 +166,7 @@ function formView() {
 }
 
 const DOCS = [["ic_front", "MyKad: front", true], ["ic_back", "MyKad: back", true], ["selfie", "Selfie holding your MyKad", true], ["first_aid_cert", "First aid certificate", false], ["police_cert", "Police / good conduct letter", false]];
+// "Optional" here means optional to apply: both are needed before the first trip (KidsWay can arrange the course and the check).
 // Photos are resized on the phone (also removes camera metadata such as GPS). PDFs are sent as they are.
 async function fileData(file) {
   if (file.type === "application/pdf") {
@@ -275,7 +276,7 @@ function statusView(app) {
       toast("Uploaded"); render();
     }));
     return h("div", { class: "item" }, h("span", { class: "doc-dot" + (have ? " ok" : "") , "aria-hidden": "true" }),
-      h("div", { class: "grow" }, h("b", null, name), h("small", { class: "muted" }, have ? "Uploaded" : required ? "Required" : "Optional")),
+      h("div", { class: "grow" }, h("b", null, name), h("small", { class: "muted" }, have ? "Uploaded" : required ? "Required" : "Optional now · needed before your first trip")),
       open ? h("label", { class: "btn ghost small", for: "f-" + kind }, have ? "Replace" : "Upload") : null, open ? input : null);
   });
   const withdraw = h("button", { class: "btn ghost danger block" }, "Withdraw and erase my application");

@@ -169,7 +169,8 @@ async function adminApplicant(id) {
     return h("div", { class: "item" }, h("div", { class: "grow" }, h("b", null, DOC_NAMES[d.kind] || d.kind), h("small", { class: "muted" }, `${d.mime.split("/")[1].toUpperCase()} · ${Math.round(d.size / 1024)} KB · ${d.by === "officer" ? "officer" : "applicant"} · ${fmtDate(d.at)}`)), b);
   };
 
-  // Officer upload, e.g. the e-DKK result received from JKM.
+  // Officer upload, e.g. the e-DKK result received from JKM. (MyKad photos and the selfie come only from the applicant.)
+  const OFFICER_KINDS = ["edkk_result", "police_cert", "first_aid_cert", "reference_notes", "interview_form", "other"];
   let upKind = "edkk_result";
   const upFile = h("input", { type: "file", accept: "image/jpeg,image/png,application/pdf", class: "visually-hidden", id: "officer-up" });
   upFile.addEventListener("change", () => run(async () => {
@@ -194,7 +195,9 @@ async function adminApplicant(id) {
     return h("div", { class: "check-card " + (c.result || "") },
       h("div", { class: "row" }, h("b", { class: "grow" }, c.label), c.result ? h("span", { class: "pill " + (c.result === "pass" ? "ok" : "bad") }, c.result) : h("span", { class: "pill warn" }, "to do")),
       c.result ? h("small", { class: "muted" }, `${c.by}, ${fmtDate(c.at)}${c.validUntil ? " · valid until " + fmtDate(c.validUntil) : ""}${c.note ? " · “" + c.note + "”" : ""}`) : null,
-      missing.length ? h("small", { class: "bad-text" }, "Evidence needed: " + missing.map((k) => DOC_NAMES[k]).join(", ")) : null,
+      missing.length ? h("div", { class: "row tight" }, h("small", { class: "bad-text grow" }, "Evidence needed: " + missing.map((k) => DOC_NAMES[k]).join(", ")),
+        // Add the missing file right here (e.g. the e-DKK result JKM sent to KidsWay), no need to scroll to Documents.
+        canEdit ? missing.filter((k) => OFFICER_KINDS.includes(k)).map((k) => h("button", { type: "button", class: "btn ghost small", onclick: () => { upKind = k; upFile.click(); } }, "Add " + DOC_NAMES[k])) : null) : null,
       canEdit ? h("div", { class: "row" }, h("input", { type: "text", maxlength: "500", placeholder: "Note (optional)", class: "grow", oninput: (e) => { note = e.target.value; } }), act("pass", "Pass", missing.length ? "ghost" : ""), act("fail", "Fail", "ghost danger")) : null);
   };
 
@@ -229,7 +232,7 @@ async function adminApplicant(id) {
     section("References", a.references.map((r) => h("div", { class: "item" }, h("div", { class: "grow" }, h("b", null, r.name), h("small", { class: "muted" }, r.relation)), h("a", { class: "btn ghost small", href: "tel:" + r.phone }, r.phone)))),
     section("Documents", a.docs.length ? a.docs.map(docRow) : empty("No documents yet."),
       a.status !== "rejected" ? h("div", { class: "row" },
-        h("select", { "aria-label": "Document type", class: "grow", onchange: (e) => { upKind = e.target.value; } }, ["edkk_result", "police_cert", "first_aid_cert", "reference_notes", "interview_form", "other"].map((k) => h("option", { value: k }, DOC_NAMES[k]))),
+        h("select", { "aria-label": "Document type", class: "grow", onchange: (e) => { upKind = e.target.value; } }, OFFICER_KINDS.map((k) => h("option", { value: k }, DOC_NAMES[k]))),
         h("label", { class: "btn ghost small", for: "officer-up" }, "Add file"), upFile) : null,
       h("p", { class: "muted lock" }, "Files are encrypted at rest. Links last 5 minutes and every opening is in the audit log.")),
     aiSection(a.ai),

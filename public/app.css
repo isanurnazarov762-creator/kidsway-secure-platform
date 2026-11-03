@@ -320,7 +320,7 @@ body[data-app="control"] .wm-app { background: #1d2540; }
   body[data-app="control"] #app { max-width: none; }
   body[data-app="control"] .screen.has-nav { padding-bottom: 0; padding-left: 232px; }
   body[data-app="control"] .bar, body[data-app="control"] .content { max-width: 1080px; width: 100%; margin: 0 auto; }
-  body[data-app="control"] .bar { background: transparent; backdrop-filter: none; padding-top: 22px; }
+  body[data-app="control"] .bar { background: rgba(238, 241, 247, .94); backdrop-filter: blur(8px); padding-top: 22px; }
   body[data-app="control"] .bar-title { font-size: 24px; }
   body[data-app="control"] .tabbar { left: 0; top: 0; bottom: 0; transform: none; width: 232px; max-width: none; height: auto; flex-direction: column; justify-content: flex-start; gap: 4px; padding: 18px 12px; background: #1d2540; border: 0; }
   body[data-app="control"] .tabbar a { flex: none; flex-direction: row; justify-content: flex-start; gap: 12px; padding: 11px 14px; border-radius: 12px; font-size: 14.5px; color: #b9c3e0; }
