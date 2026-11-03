@@ -19,3 +19,5 @@ Files 09, 12, 13 and 14 are rendered from the exact terminal text I captured (th
 | `12-nmap-all-ports.png` | Full TCP scan: only 22, 80, 443 open |
 | `13-nmap-tls.png` | TLS 1.2 / 1.3 only, every cipher graded A |
 | `14-fail2ban-ban.png` | Forged-token attack → Windows host banned automatically |
+| `15-sms-outbox.png` | Lab SMS outbox: the login code is written on the server (masked phone), never shown in the browser |
+| `16-lab-admin-login.png` | Admin logged in to the app on the hardened lab server over HTTPS |

@@ -194,6 +194,7 @@ Built and attacked on my own laptop: Windows 11 host, **Ubuntu Server 26.04.1 LT
 | Network segmentation | `app` and `ai` networks are `internal`; nginx cannot resolve the verifier; the API has no internet access | [`server-hardening.txt`](docs/evidence/server-hardening.txt) |
 | Secret files not served | `https://192.168.56.10/.env` → 404 | [screenshot](docs/evidence/screenshots/10-env-file-blocked.png) |
 | Intrusion prevention | 25 requests with a forged token → 22 `auth_fail` events → fail2ban **banned 192.168.56.1** on 80/443; SSH stayed open | [`fail2ban-ban.txt`](docs/evidence/fail2ban-ban.txt) |
+| Working app on the hardened server | Admin logged in over HTTPS; the one-time code went to a server-side SMS outbox (mode 0600, masked phone), not to the browser | [outbox](docs/evidence/screenshots/15-sms-outbox.png), [app](docs/evidence/screenshots/16-lab-admin-login.png) |
 | Privacy of logs | Security log holds event code and IP only, no tokens or personal data | [`fail2ban-ban.txt`](docs/evidence/fail2ban-ban.txt) |
 
 Problems I hit on the way, and the fixes (now in the repo and the [lab guide](docs/lab-guide.md)):
@@ -207,7 +208,7 @@ Problems I hit on the way, and the fixes (now in the repo and the [lab guide](do
 <img src="docs/evidence/screenshots/14-fail2ban-ban.png" width="49%" alt="fail2ban banning the attacking host">
 </p>
 
-All 14 screenshots, with what each one shows: [`docs/evidence/screenshots/`](docs/evidence/screenshots/)
+All 16 screenshots, with what each one shows: [`docs/evidence/screenshots/`](docs/evidence/screenshots/)
 
 ## Limits and next steps
 
