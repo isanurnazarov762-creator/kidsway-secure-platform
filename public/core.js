@@ -210,8 +210,17 @@ function empty(text, btn) { return h("div", { class: "empty" }, h("p", null, tex
 // ---------- render ----------
 let renderSeq = 0;
 let appRoute = null;
+let DEMO = false; // the public demo (test data only): a banner on every screen
 /** Called once by parent.js, guardian.js or control.js with that app's router. */
-function start(routeFn) { appRoute = routeFn; render(); }
+async function start(routeFn) {
+  appRoute = routeFn;
+  try { DEMO = !!(await (await fetch("/api/info")).json()).demo; } catch { /* older server: no banner */ }
+  if (DEMO) {
+    document.body.classList.add("is-demo");
+    document.body.prepend(h("div", { class: "demo-banner", role: "note" }, h("b", null, "DEMO"), " Test data only · SMS codes are shown on screen · data is reset regularly. Do not enter real information."));
+  }
+  render();
+}
 async function render() {
   const seq = ++renderSeq;
   cleanup();
@@ -239,7 +248,7 @@ async function render() {
 // =====================================================================
 function loginScreen() {
   const L = S.login;
-  const local = ["localhost", "127.0.0.1"].includes(location.hostname);
+  const local = ["localhost", "127.0.0.1"].includes(location.hostname) || DEMO;
   const hero = h("div", { class: "hero" }, h("span", { class: "logo big", "aria-hidden": "true" }),
     h("p", { class: "wm" }, "Kids", h("b", null, "Way"), APP.id !== "parent" ? h("span", { class: "wm-app" }, APP.id === "guardian" ? "Guardian" : "Control") : null),
     h("p", { class: "hero-sub" }, APP.tagline));
@@ -254,17 +263,17 @@ function loginScreen() {
       L.challengeId = r.challengeId; L.devCode = r.devCode || null; L.code = ""; L.step = 2; render();
     }, btn); } }, h("label", null, "Mobile number", phone), name ? h("label", null, "Your name", name) : null, btn,
       h("p", { class: "muted center" }, "No passwords. We send a one-time code by SMS."));
-    const demo = { parent: ["Parent: any number, e.g. +60123456789"], guardian: ["Guardian: a number approved in Hiring, or added under Team in KidsWay Control"], control: ["Admin: +60100000000", "Second vetting officer: +60100000001"] }[APP.id];
+    const demo = { parent: ["Parent: any number, e.g. +60123456789"], guardian: [DEMO ? "Guardian: +60111222333 (demo Guardian), or a number approved in Hiring" : "Guardian: a number approved in Hiring, or added under Team in KidsWay Control"], control: ["Admin: +60100000000", "Second vetting officer: +60100000001"] }[APP.id];
     return h("div", { class: "login" }, hero, notice, form,
       APP.id === "guardian" ? h("a", { class: "card apply-cta", href: "/guardian/apply" }, h("b", null, "Become a KidsWay Guardian"), h("small", { class: "muted" }, "Women aged 20 to 55 · apply in this app, security-checked before the first trip"), h("span", { class: "chev", "aria-hidden": "true" }, "›")) : null,
-      local ? h("details", { class: "card sun" }, h("summary", null, "Demo accounts on this computer"),
+      local ? h("details", { class: "card sun" }, h("summary", null, DEMO ? "Demo accounts" : "Demo accounts on this computer"),
         h("p", { class: "muted" }, "Each app keeps its own sign-in. Use another tab for another app."), demo.map((t) => h("p", null, t))) : null,
       h("p", { class: "other-apps muted center" }, otherApps()));
   }
   const code = h("input", { type: "text", inputmode: "numeric", maxlength: "6", autocomplete: "one-time-code", value: L.code, placeholder: "••••••", class: "code-input", oninput: (e) => { L.code = e.target.value.trim(); } });
   const btn = h("button", { class: "btn block", type: "submit" }, "Verify");
   return h("div", { class: "login" }, hero,
-    L.devCode ? h("div", { class: "sms", role: "note" }, h("small", null, "SMS simulator · development only"), h("p", null, "Your KidsWay code is ", h("b", null, L.devCode))) : null,
+    L.devCode ? h("div", { class: "sms", role: "note" }, h("small", null, DEMO ? "SMS simulator · public demo" : "SMS simulator · development only"), h("p", null, "Your KidsWay code is ", h("b", null, L.devCode))) : null,
     h("form", { class: "card", onsubmit: (e) => { e.preventDefault(); run(async () => {
       try {
         const r = await api("POST", "/api/auth/otp/verify", { phone: L.phone, challengeId: L.challengeId, code: L.code, name: (parentApp && L.name) || undefined, app: APP.id });

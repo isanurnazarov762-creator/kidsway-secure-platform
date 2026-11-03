@@ -1,0 +1,26 @@
+# Public demo on Render's free plan (https://render.com/docs/free). Render: New -> Blueprint -> this repository.
+# NODE_ENV=demo: test data only, SMS codes shown on screen with a DEMO banner, data kept in memory
+# (lost when the free service sleeps after 15 minutes without visitors). Never put real data here.
+services:
+  - type: web
+    name: kidsway-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: demo
+      - key: DB_PATH
+        value: ":memory:"
+      - key: TRUST_PROXY
+        value: "1"
+      - key: VETTING_APPROVALS
+        value: "2"
+      - key: DEV_ADMIN_PHONE
+        value: "+60100000000"
+      - key: DEV_OFFICER2_PHONE
+        value: "+60100000001"
+      - key: DEV_GUARDIAN_PHONE
+        value: "+60111222333"

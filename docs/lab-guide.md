@@ -15,7 +15,7 @@ Take the screenshots marked 📸. They go into the README and prove you did it y
 2. Open the project folder in VS Code, open a terminal and run:
    ```powershell
    node -v          # must show v22.18 or newer
-   npm test         # 63 tests should pass
+   npm test         # 64 tests should pass
    npm run attack:handover
    npm run attack:otp
    npm run attack:idor

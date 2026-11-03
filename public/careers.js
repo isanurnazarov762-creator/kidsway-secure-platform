@@ -297,4 +297,10 @@ function statusView(app) {
     h("button", { class: "link", onclick: () => { A.token = null; write("kw_ap_token", null); A.step = "phone"; render(); } }, "Sign out"));
 }
 
+// Public demo (test data only): the same banner as in the apps.
+fetch("/api/info").then((r) => r.json()).then((i) => {
+  if (!i.demo) return;
+  document.body.prepend(h("div", { class: "demo-banner", role: "note" }, h("b", null, "DEMO"), " Test data only · SMS codes are shown on screen · data is reset regularly. Do not upload real documents."));
+}).catch(() => { /* no banner */ });
+
 render();

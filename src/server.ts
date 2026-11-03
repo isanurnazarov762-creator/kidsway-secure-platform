@@ -14,6 +14,14 @@ if (cfg.env !== "production" && process.env.DEV_ADMIN_PHONE) {
     app.ensureStaff(process.env.DEV_OFFICER2_PHONE, "Dev officer 2", "admin", "vetting");
     console.log(`Second vetting officer: log in with ${process.env.DEV_OFFICER2_PHONE}`);
   }
+  // A ready Guardian for the demo (in real use Guardians come only through Hiring).
+  if (process.env.DEV_GUARDIAN_PHONE) {
+    app.ensureStaff(process.env.DEV_GUARDIAN_PHONE, "Siti (demo Guardian)", "escort", null);
+    console.log(`Demo Guardian: log in to KidsWay Guardian with ${process.env.DEV_GUARDIAN_PHONE}`);
+  }
+}
+if (cfg.publicDemo) {
+  console.warn("PUBLIC DEMO: test data only, SMS codes are shown on screen, data is lost on every restart.");
 }
 
 if (cfg.insecureDemo) {

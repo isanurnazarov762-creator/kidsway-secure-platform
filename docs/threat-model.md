@@ -127,6 +127,8 @@ KidsWay is split like a ride-hailing company: **KidsWay** (parents, `/`), **Kids
 | X4 | Information disclosure | Parents' devices download and cache the staff console, showing every admin function and endpoint | Each page loads only the shared core and its own file; each service worker caches only its own app | A7 |
 | X5 | Elevation of privilege | A bug in one app uses a device permission it does not need | `Permissions-Policy` per app: camera only in Guardian, GPS in Guardian and the parent app, nothing in Control | A7 |
 
+Public demo (`NODE_ENV=demo`, [demo.md](demo.md)): codes on screen and in-memory test data by design; a real SMS provider and the insecure attack mode are refused in that mode (D1), and production never returns a code. Rate limits there rely on Render's `X-Forwarded-For`.
+
 Limit: in the lab the three apps share one origin, so the browser does not isolate their storage; each app uses its own session key. Production should use separate subdomains, with `control.` reachable only through the staff VPN.
 
 ## 5. Risk rating (before and after)

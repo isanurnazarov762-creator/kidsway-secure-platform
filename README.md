@@ -6,7 +6,12 @@ KidsWay lets parents book a trusted escort who takes their child from point A to
 
 > Portfolio project by Isa. The product (website and app prototype) was designed for a university startup course; this repository is my own security engineering work on top of it.
 
-![tests](https://img.shields.io/badge/tests-63%20passing-2ea44f) ![deps](https://img.shields.io/badge/API%20runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
+![tests](https://img.shields.io/badge/tests-64%20passing-2ea44f) ![deps](https://img.shields.io/badge/API%20runtime%20dependencies-0-blue) ![node](https://img.shields.io/badge/node-%E2%89%A522.18-339933)
+
+## Live demo
+
+Try the three apps from a link (test data only, codes shown on screen, see [docs/demo.md](docs/demo.md)):
+**KidsWay** `/` · **KidsWay Guardian** `/guardian/` · **KidsWay Control** `/control/` at **DEMO_URL**
 
 ## Results at a glance
 
@@ -34,7 +39,7 @@ Full write-up: [**Security assessment report**](docs/pentest-report.md).
 | Working app | Installable web apps (PWA): OpenStreetMap map with address search, one-time trips there and back, weekly plans, live location, photo reports, admin prices | [`public/`](public/) |
 | Guardian hiring and vetting | Careers page and application portal; MyKad-based eligibility; e-DKK, police, references, interview, first aid and training checks with required evidence; four-eyes approval; yearly re-checks with instant suspension; encrypted documents; PDPA erasure | [`src/hiring.ts`](src/hiring.ts), [`public/careers.html`](public/careers.html) (served at `/guardian/apply`) |
 | AI identity check | Python service on its own internal network: active liveness (random head-turn prompts), selfie vs MyKad face match, MyKad OCR; HMAC-signed calls, SHA-256-pinned models, no image ever stored; the AI suggests, an officer decides | [`verifier/`](verifier/) |
-| Verification | 63 Node tests (25 security, 10 feature, 11 hiring, 8 AI, 7 separate apps, 2 lab SMS outbox) and 31 Python verifier tests, 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
+| Verification | 64 Node tests (25 security, 10 feature, 11 hiring, 8 AI, 7 separate apps, 2 lab SMS outbox, 1 demo mode) and 31 Python verifier tests, 4 attack scripts, TCP port scanner | [`test/`](test/), [`attacks/`](attacks/) |
 | Lab guide | Step-by-step build on Windows + VirtualBox, with nmap and fail2ban checks | [`docs/lab-guide.md`](docs/lab-guide.md) |
 
 ## Architecture
@@ -168,7 +173,7 @@ Requires **Node.js 22.18 or newer**. No `npm install` needed.
 
 ```bash
 npm run dev                 # app + API on http://localhost:3000 (data saved in data/)
-npm test                    # 63 tests
+npm test                    # 64 tests
 cd verifier && python -m unittest   # 31 verifier tests (see verifier/README.md)
 npm run attack:handover     # each attack runs against v0 and v1
 npm run attack:otp

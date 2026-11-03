@@ -2,7 +2,8 @@
 import { randomBytes } from "node:crypto";
 
 export type Config = {
-  env: "development" | "test" | "production";
+  env: "development" | "test" | "production" | "demo";
+  publicDemo: boolean; // NODE_ENV=demo: the public showcase with test data only (see docs/demo.md)
   port: number;
   host: string;
   dbPath: string;
@@ -49,7 +50,8 @@ function key(name: string, env: NodeJS.ProcessEnv, allowGenerate: boolean): Buff
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Partial<Config> = {}): Config {
-  const mode = (env.NODE_ENV === "production" ? "production" : env.NODE_ENV === "test" ? "test" : "development") as Config["env"];
+  const mode = (env.NODE_ENV === "production" ? "production" : env.NODE_ENV === "test" ? "test" : env.NODE_ENV === "demo" ? "demo" : "development") as Config["env"];
+  const demo = mode === "demo";
   const prod = mode === "production";
 
   const dataKeys: Record<string, Buffer> = {};
@@ -94,12 +96,17 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
     verifierUrl: env.VERIFIER_URL || null,
     verifierKey: env.VERIFIER_KEY ? Buffer.from(env.VERIFIER_KEY, "base64") : null,
     aiMaxAttempts: 3,
-    devOtpEcho: !prod && env.DEV_OTP_ECHO === "1",
+    // The public demo has no SMS gateway and only test data, so it shows the code on screen, clearly labelled.
+    devOtpEcho: demo || (!prod && env.DEV_OTP_ECHO === "1"),
+    publicDemo: demo,
     insecureDemo: env.INSECURE_DEMO === "1",
     securityLogFile: env.SECURITY_LOG_FILE || null,
     logToConsole: mode !== "test",
     // On one dev laptop every user (parent, escort, admin) comes from 127.0.0.1, so IP limits are relaxed there.
-    limits: !prod && env.DEV_RELAX_IP_LIMITS === "1"
+    // The public demo: many visitors share the demo admin and Guardian numbers, so the per-phone limit is higher.
+    limits: demo
+      ? { globalIpPerMin: 300, otpRequestIpPer10Min: 20, otpRequestPhonePer10Min: 40, otpVerifyIpPer10Min: 40 }
+      : !prod && env.DEV_RELAX_IP_LIMITS === "1"
       ? { globalIpPerMin: 3000, otpRequestIpPer10Min: 200, otpRequestPhonePer10Min: 5, otpVerifyIpPer10Min: 400 }
       : { globalIpPerMin: 300, otpRequestIpPer10Min: 10, otpRequestPhonePer10Min: 3, otpVerifyIpPer10Min: 20 },
     ...overrides
@@ -109,6 +116,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env, overrides: Part
   }
   if (prod && cfg.verifierUrl && !/^http:\/\/[a-z0-9.-]+:\d+$/.test(cfg.verifierUrl) && !cfg.verifierUrl.startsWith("https://")) {
     throw new Error("VERIFIER_URL must be an internal service address (http://name:port) or https://");
+  }
+  if (demo && (cfg.insecureDemo || env.SMS_PROVIDER)) {
+    throw new Error("The public demo runs with test data only: no INSECURE_DEMO and no real SMS provider");
   }
   if (prod && (cfg.insecureDemo || cfg.devOtpEcho)) {
     throw new Error("INSECURE_DEMO and DEV_OTP_ECHO are not allowed in production");

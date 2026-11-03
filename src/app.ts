@@ -351,7 +351,7 @@ export function createApp(cfg: Config) {
   // =====================================================================
   r.add("GET", "/api/settings", (ctx) => {
     requireUser(ctx);
-    return { ...getSettings(), dev: cfg.env !== "production" };
+    return { ...getSettings(), dev: cfg.env !== "production", demo: cfg.publicDemo };
   });
 
   r.add("PUT", "/api/admin/settings", (ctx) => {
@@ -840,6 +840,8 @@ export function createApp(cfg: Config) {
   });
 
   r.add("GET", "/healthz", () => ({ ok: true }));
+  // Public, no data: lets the page show the "demo" banner before anyone signs in.
+  r.add("GET", "/api/info", () => ({ demo: cfg.publicDemo }));
 
   // ---------- the web app (static files) ----------
   // A fixed allow-list of files: no user input ever reaches a file path, so no path traversal.
@@ -889,7 +891,8 @@ export function createApp(cfg: Config) {
     "/static/map\\.js": ["map.js", JS, P_PARENT],
     "/static/app\\.css": ["app.css", "text/css; charset=utf-8", P_PARENT],
     "/static/icon-192\\.png": ["icon-192.png", PNG, P_PARENT],
-    "/static/icon-512\\.png": ["icon-512.png", PNG, P_PARENT]
+    "/static/icon-512\\.png": ["icon-512.png", PNG, P_PARENT],
+    "/favicon\\.ico": ["favicon.ico", "image/x-icon", P_PARENT] // browsers ask for it by themselves
   };
   const publicDir = new URL("../public/", import.meta.url);
   for (const [route, [file, mime, headers]] of Object.entries(STATIC)) {
